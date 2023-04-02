@@ -59,7 +59,7 @@ file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WD
 if (NOT WIN32)
   # file(COPY_FILE ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf/res.rc ${PROJECT_SOURCE_DIR}/WDL/swell/)
   execute_process(
-    ${PROJECT_SOURCE_DIR}/WDL/swell/swell_resgen.sh res.rc
+    COMMAND ${PROJECT_SOURCE_DIR}/WDL/swell/swell_resgen.sh res.rc
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf)
 endif()
 
