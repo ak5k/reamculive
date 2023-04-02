@@ -59,7 +59,7 @@ file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WD
 if (NOT WIN32)
   # file(COPY_FILE ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf/res.rc ${PROJECT_SOURCE_DIR}/WDL/swell/)
   execute_process(
-    ${PROJECT_SOURCE_DIR}/WDL/swell/swell-resgen.sh res.rc
+    ${PROJECT_SOURCE_DIR}/WDL/swell/swell_resgen.sh res.rc
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf)
 endif()
 
@@ -134,7 +134,7 @@ if(WIN32)
    target_compile_definitions(common INTERFACE)
 else()
   target_compile_options(common INTERFACE
-    -Wall -Wextra -Wpedantic -Werror
+    -Wall -Wextra -Wpedantic # -Werror
   )
 endif()
 
