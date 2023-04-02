@@ -5,6 +5,8 @@
 ** License: LGPL.
 */
 
+#include <algorithm>
+
 #include <reaper_plugin_functions.h>
 
 #include "csurf.h"
@@ -1201,7 +1203,7 @@ class CSurf_MCU : public IReaperControlSurface {
         DWORD now = timeGetTime();
 
         if ((int)(now - m_frameupd_lastrun) >=
-            (1000 / max((*g_config_csurf_rate), 1))) {
+            (1000 / std::max((*g_config_csurf_rate), 1))) {
             m_frameupd_lastrun = now;
 
             while (m_schedule && (now - m_schedule->time) < 0x10000000) {
