@@ -56,6 +56,12 @@ if(NOT EXISTS ${PROJECT_SOURCE_DIR}/external/WDL)
     
 endif()
 file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WDL SYMBOLIC)
+if (NOT WIN32)
+  # file(COPY_FILE ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf/res.rc ${PROJECT_SOURCE_DIR}/WDL/swell/)
+  execute_process(
+    ${PROJECT_SOURCE_DIR}/WDL/swell/swell-resgen.sh res.rc
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf)
+endif()
 
 if(WIN32)
   foreach(arg
