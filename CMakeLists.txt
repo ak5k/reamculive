@@ -134,8 +134,10 @@ if(WIN32)
    target_compile_definitions(common INTERFACE NOMINMAX)
 else()
   target_compile_options(common INTERFACE
-    -Wall -Wextra -Wpedantic # -Werror
-    -Wno-unused-parameter
+    -Wall -Wextra -Werror 
+    -Wpedantic
+    -Wno-multichar
+    -Wno-unused-parameter -Wno-missing-field-initializers -Wno-missing-braces
   )
 endif()
 

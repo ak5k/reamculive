@@ -30,6 +30,7 @@ for:
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
         # sudo update-alternatives --set gcc /usr/bin/gcc-7
+        sudo apt install php-cli
       case $ARCH in
       x86_64)
         install-deps amd64
@@ -104,21 +105,21 @@ for:
 
 environment:
   matrix:
+    - job_name: Linux x86 64-bit
+      appveyor_build_worker_image: *linux
+      ARCH: x86_64
     - job_name: macOS x86 64-bit
       appveyor_build_worker_image: macos-catalina
       ARCH: x86_64
     - job_name: macOS ARM 64-bit
       appveyor_build_worker_image: macos-catalina
       ARCH: arm64
-    # - job_name: macOS x86 32-bit
-    #   appveyor_build_worker_image: macos-mojave
-    #   ARCH: i386
-    - job_name: Linux x86 64-bit
-      appveyor_build_worker_image: *linux
-      ARCH: x86_64
     - job_name: Windows 64-bit
       appveyor_build_worker_image: *windows
       ARCH: x64
+    # - job_name: macOS x86 32-bit
+    #   appveyor_build_worker_image: macos-mojave
+    #   ARCH: i386
     - job_name: Linux ARM 64-bit
       appveyor_build_worker_image: *linux
       ARCH: aarch64
