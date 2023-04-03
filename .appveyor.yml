@@ -30,7 +30,6 @@ for:
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
         # sudo update-alternatives --set gcc /usr/bin/gcc-7
-        sudo apt install -qq php-cli
       case $ARCH in
       x86_64)
         install-deps amd64
@@ -52,6 +51,7 @@ for:
         export TOOLCHAIN=cmake/linux-cross.cmake
         ;;
       esac
+      sudo aptitude install -yR php-cli
       TRIPLET=arch-env 
       export VCPKG_OVERLAY_TRIPLETS=cmake/vcpkg-triplets
     build_script:
