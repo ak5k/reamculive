@@ -6,6 +6,7 @@ include(CheckCXXSourceCompiles)
 include(CheckIncludeFileCXX)
 include(CheckLinkerFlag)
 include(FindGit)
+include(FindThreads)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -178,5 +179,8 @@ target_link_libraries(reamcusof WDL::WDL)
 if(NOT WIN32)
   find_package(SWELL REQUIRED)
   target_link_libraries(reamcusof SWELL::swell)
+  if(NOT APPLE)
+    target_link_libraries(reamcusof Threads::Threads)
+  endif()
 endif()
 
