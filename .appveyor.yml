@@ -30,7 +30,7 @@ for:
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
         # sudo update-alternatives --set gcc /usr/bin/gcc-7
-        sudo apt install php-cli
+        sudo apt install -qq php-cli
       case $ARCH in
       x86_64)
         install-deps amd64
