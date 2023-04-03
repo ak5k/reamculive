@@ -135,6 +135,7 @@ if(WIN32)
 else()
   target_compile_options(common INTERFACE
     -Wall -Wextra -Wpedantic # -Werror
+    -Wno-unused-parameter
   )
 endif()
 
