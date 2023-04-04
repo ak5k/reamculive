@@ -16,6 +16,8 @@
 
 #include "../../WDL/setthreadname.h"
 
+namespace ReaMCULive {
+
 extern reaper_csurf_reg_t csurf_mcu_reg, csurf_mcuex_reg;
 
 REAPER_PLUGIN_HINSTANCE g_hInst; // used for dialogs, if any
@@ -36,19 +38,21 @@ int __g_projectconfig_show_grid;
 int __g_projectconfig_autoxfade;
 int __g_projectconfig_metronome_en;
 
+} // namespace ReaMCULive
+
 extern "C" {
 
 REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(
     REAPER_PLUGIN_HINSTANCE hInstance,
     reaper_plugin_info_t* rec)
 {
-    g_hInst = hInstance;
+    ReaMCULive::g_hInst = hInstance;
 
     if (!rec || rec->caller_version != REAPER_PLUGIN_VERSION || !rec->GetFunc ||
         REAPERAPI_LoadAPI(rec->GetFunc))
         return 0;
 
-    g_hwnd = rec->hwnd_main;
+    ReaMCULive::g_hwnd = rec->hwnd_main;
     int errcnt = 0;
 
     int sztmp;
@@ -60,27 +64,27 @@ REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(
     if (!((x) = projectconfig_var_getoffs(nm, &sztmp)) || \
         sztmp != sizeof(type))                            \
         errcnt++;
-    IMPVAR(g_config_csurf_rate, "csurfrate")
-    IMPVAR(g_config_zoommode, "zoommode")
-    IMPVAR(g_vu_minvol, "vuminvol");
-    IMPVAR(g_vu_maxvol, "vumaxvol");
-    IMPVAR(g_config_vudecay, "vudecay");
+    IMPVAR(ReaMCULive::g_config_csurf_rate, "csurfrate")
+    IMPVAR(ReaMCULive::g_config_zoommode, "zoommode")
+    IMPVAR(ReaMCULive::g_vu_minvol, "vuminvol");
+    IMPVAR(ReaMCULive::g_vu_maxvol, "vumaxvol");
+    IMPVAR(ReaMCULive::g_config_vudecay, "vudecay");
 
-    IMPVARP(__g_projectconfig_timemode, "projtimemode", int)
-    IMPVARP(__g_projectconfig_timemode2, "projtimemode2", int)
-    IMPVARP(__g_projectconfig_timeoffs, "projtimeoffs", double);
-    IMPVARP(__g_projectconfig_measoffs, "projmeasoffs", int);
-    IMPVARP(__g_projectconfig_show_grid, "projshowgrid", int);
-    IMPVARP(__g_projectconfig_autoxfade, "autoxfade", int);
-    IMPVARP(__g_projectconfig_metronome_en, "projmetroen", int);
+    IMPVARP(ReaMCULive::__g_projectconfig_timemode, "projtimemode", int)
+    IMPVARP(ReaMCULive::__g_projectconfig_timemode2, "projtimemode2", int)
+    IMPVARP(ReaMCULive::__g_projectconfig_timeoffs, "projtimeoffs", double);
+    IMPVARP(ReaMCULive::__g_projectconfig_measoffs, "projmeasoffs", int);
+    IMPVARP(ReaMCULive::__g_projectconfig_show_grid, "projshowgrid", int);
+    IMPVARP(ReaMCULive::__g_projectconfig_autoxfade, "autoxfade", int);
+    IMPVARP(ReaMCULive::__g_projectconfig_metronome_en, "projmetroen", int);
 
     if (errcnt)
         return 0;
 
     // Plugin_Register = rec->Register;
 
-    rec->Register("csurf", &csurf_mcu_reg);
-    rec->Register("csurf", &csurf_mcuex_reg);
+    rec->Register("csurf", &ReaMCULive::csurf_mcu_reg);
+    rec->Register("csurf", &ReaMCULive::csurf_mcuex_reg);
 
     IMPORT_LOCALIZE_RPLUG(rec)
     return 1;
@@ -95,6 +99,8 @@ REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(
 #include "../../WDL/swell/swell-menugen.h"
 #include "res.rc_mac_menu"
 #endif
+
+namespace ReaMCULive {
 
 #ifndef _WIN32 // let OS X use this threading step
 
@@ -239,3 +245,4 @@ midi_Output* CreateThreadedMIDIOutput(midi_Output* output)
 }
 
 #endif
+} // namespace ReaMCULive

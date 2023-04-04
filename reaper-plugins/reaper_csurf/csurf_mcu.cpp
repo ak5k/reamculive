@@ -6,6 +6,7 @@
 */
 
 #include <algorithm>
+#include <cstring>
 
 #include <reaper_plugin_functions.h>
 
@@ -15,76 +16,147 @@
 
 #define timeGetTime() GetTickCount()
 
-/*
+// clang-format off
+
+/* 
+
 MCU documentation:
-
 MCU=>PC:
-  The MCU seems to send, when it boots (or is reset) F0 00 00 66 14 01 58 59 5A
-57 18 61 05 57 18 61 05 F7
-
+  The MCU seems to send, when it boots (or is reset) F0 00 00 66 14 01 58 59 5A 57 18 61 05 57 18 61 05 F7
   Ex vv vv    :   volume fader move, x=0..7, 8=master, vv vv is int14
-  B0 1x vv    :   pan fader move, x=0..7, vv has 40 set if negative, low bits
-0-31 are move amount B0 3C vv    :   jog wheel move, 01 or 41
-
-  to the extent the buttons below have LEDs, you can set them by sending these
-messages, with 7f for on, 1 for blink, 0 for off. 90 0x vv    :   rec arm push
-x=0..7 (vv:..) 90 0x vv    :   solo push x=8..F (vv:..) 90 1x vv    :   mute
-push x=0..7 (vv:..) 90 1x vv    :   selected push x=8..F (vv:..) 90 2x vv    :
-pan knob push, x=0..7 (vv:..) 90 28 vv    :   assignment track 90 29 vv    :
-assignment send 90 2A vv    :   assignment pan/surround 90 2B vv    : assignment
-plug-in 90 2C vv    :   assignment EQ 90 2D vv    :   assignment instrument 90
-2E vv    :   bank down button (vv: 00=release, 7f=push) 90 2F vv    :   channel
-down button (vv: ..) 90 30 vv    :   bank up button (vv:..) 90 31 vv    :
-channel up button (vv:..) 90 32 vv    :   flip button 90 33 vv    :   global
-view button 90 34 vv    :   name/value display button 90 35 vv    : smpte/beats
-mode switch (vv:..) 90 36 vv    :   F1 90 37 vv    :   F2 90 38 vv    :   F3 90
-39 vv    :   F4 90 3A vv    :   F5 90 3B vv    :   F6 90 3C vv    :   F7 90 3D
-vv    :   F8 90 3E vv    :   Global View : midi tracks 90 3F vv    :   Global
-View : inputs 90 40 vv    :   Global View : audio tracks 90 41 vv    :   Global
-View : audio instrument 90 42 vv    :   Global View : aux 90 43 vv    :   Global
-View : busses 90 44 vv    :   Global View : outputs 90 45 vv    :   Global View
-: user 90 46 vv    :   shift modifier (vv:..) 90 47 vv    :   option modifier 90
-48 vv    :   control modifier 90 49 vv    :   alt modifier 90 4A vv    :
-automation read/off 90 4B vv    :   automation write 90 4C vv    :   automation
-trim 90 4D vv    :   automation touch 90 4E vv    :   automation latch 90 4F vv
-:   automation group 90 50 vv    :   utilities save 90 51 vv    :   utilities
-undo 90 52 vv    :   utilities cancel 90 53 vv    :   utilities enter 90 54 vv
-:   marker 90 55 vv    :   nudge 90 56 vv    :   cycle 90 57 vv    :   drop 90
-58 vv    :   replace 90 59 vv    :   click 90 5a vv    :   solo 90 5b vv    :
-transport rewind (vv:..) 90 5c vv    :   transport ffwd (vv:..) 90 5d vv    :
-transport pause (vv:..) 90 5e vv    :   transport play (vv:..) 90 5f vv    :
-transport record (vv:..) 90 60 vv    :   up arrow button  (vv:..) 90 61 vv    :
-down arrow button 1 (vv:..) 90 62 vv    :   left arrow button 1 (vv:..) 90 63 vv
-:   right arrow button 1 (vv:..) 90 64 vv    :   zoom button (vv:..) 90 65 vv :
-scrub button (vv:..)
-
+  B0 1x vv    :   pan fader move, x=0..7, vv has 40 set if negative, low bits 0-31 are move amount
+  B0 3C vv    :   jog wheel move, 01 or 41
+  to the extent the buttons below have LEDs, you can set them by sending these messages, with 7f for on, 1 for blink, 0 for off.
+  90 0x vv    :   rec arm push x=0..7 (vv:..)
+  90 0x vv    :   solo push x=8..F (vv:..)
+  90 1x vv    :   mute push x=0..7 (vv:..)
+  90 1x vv    :   selected push x=8..F (vv:..)
+  90 2x vv    :   pan knob push, x=0..7 (vv:..)
+  90 28 vv    :   assignment track
+  90 29 vv    :   assignment send
+  90 2A vv    :   assignment pan/surround
+  90 2B vv    :   assignment plug-in
+  90 2C vv    :   assignment EQ
+  90 2D vv    :   assignment instrument
+  90 2E vv    :   bank down button (vv: 00=release, 7f=push)
+  90 2F vv    :   channel down button (vv: ..)
+  90 30 vv    :   bank up button (vv:..)
+  90 31 vv    :   channel up button (vv:..)
+  90 32 vv    :   flip button
+  90 33 vv    :   global view button
+  90 34 vv    :   name/value display button
+  90 35 vv    :   smpte/beats mode switch (vv:..)
+  90 36 vv    :   F1
+  90 37 vv    :   F2
+  90 38 vv    :   F3
+  90 39 vv    :   F4
+  90 3A vv    :   F5
+  90 3B vv    :   F6
+  90 3C vv    :   F7
+  90 3D vv    :   F8
+  90 3E vv    :   Global View : midi tracks
+  90 3F vv    :   Global View : inputs
+  90 40 vv    :   Global View : audio tracks
+  90 41 vv    :   Global View : audio instrument
+  90 42 vv    :   Global View : aux
+  90 43 vv    :   Global View : busses
+  90 44 vv    :   Global View : outputs
+  90 45 vv    :   Global View : user
+  90 46 vv    :   shift modifier (vv:..)
+  90 47 vv    :   option modifier
+  90 48 vv    :   control modifier
+  90 49 vv    :   alt modifier
+  90 4A vv    :   automation read/off
+  90 4B vv    :   automation write
+  90 4C vv    :   automation trim
+  90 4D vv    :   automation touch
+  90 4E vv    :   automation latch
+  90 4F vv    :   automation group
+  90 50 vv    :   utilities save
+  90 51 vv    :   utilities undo
+  90 52 vv    :   utilities cancel
+  90 53 vv    :   utilities enter
+  90 54 vv    :   marker
+  90 55 vv    :   nudge
+  90 56 vv    :   cycle
+  90 57 vv    :   drop
+  90 58 vv    :   replace
+  90 59 vv    :   click
+  90 5a vv    :   solo
+  90 5b vv    :   transport rewind (vv:..)
+  90 5c vv    :   transport ffwd (vv:..)
+  90 5d vv    :   transport pause (vv:..)
+  90 5e vv    :   transport play (vv:..)
+  90 5f vv    :   transport record (vv:..)
+  90 60 vv    :   up arrow button  (vv:..)
+  90 61 vv    :   down arrow button 1 (vv:..)
+  90 62 vv    :   left arrow button 1 (vv:..)
+  90 63 vv    :   right arrow button 1 (vv:..)
+  90 64 vv    :   zoom button (vv:..)
+  90 65 vv    :   scrub button (vv:..)
   90 6x vv    :   fader touch x=8..f
   90 70 vv    :   master fader touch
-
 PC=>MCU:
-
-  F0 00 00 66 14 12 xx <data> F7   : update LCD. xx=offset (0-112), string.
-display is 55 chars wide, second line begins at 56, though. F0 00 00 66 14 08 00
-F7          : reset MCU F0 00 00 66 14 20 0x 03 F7       : put track in VU meter
-mode, x=track
-
+  F0 00 00 66 14 12 xx <data> F7   : update LCD. xx=offset (0-112), string. display is 55 chars wide, second line begins at 56, though.
+  F0 00 00 66 14 08 00 F7          : reset MCU
+  F0 00 00 66 14 20 0x 03 F7       : put track in VU meter mode, x=track  
   90 73 vv : rude solo light (vv: 7f=on, 00=off, 01=blink)
-
   B0 3x vv : pan display, x=0..7, vv=1..17 (hex) or so
-  B0 4x vv : right to left of LEDs. if 0x40 set in vv, dot below char is set
-(x=0..11)
-
+  B0 4x vv : right to left of LEDs. if 0x40 set in vv, dot below char is set (x=0..11)
   D0 yx    : update VU meter, y=track, x=0..d=volume, e=clip on, f=clip off
-  Ex vv vv : set volume fader, x=track index, 8=master
-
-
+  Ex vv vv : set volume fader, x=track index, 8=master 
+  
 */
 
-#ifdef SPACELAB
-#define SPLASH_MESSAGE "Spacelab Recording Studio"
-#else
-#define SPLASH_MESSAGE "REAPER! Initializing... Please wait..."
-#endif
+// clang-format on
+
+// #ifdef SPACELAB
+// #define SPLASH_MESSAGE "Spacelab Recording Studio"
+// #else
+#define SPLASH_MESSAGE "ak5k MCU Live"
+
+// #endif
+
+namespace ReaMCULive {
+
+MediaTrack* FindOutputTrack()
+{
+    char buf[BUFSIZ];
+    for (int i = 0; i < GetNumTracks(); i++) {
+        auto tr = GetTrack(0, i);
+        GetTrackName(tr, buf, BUFSIZ);
+        for (size_t i = 0; buf[i] != '\0'; i++) {
+            buf[i] = tolower(buf[i]);
+        }
+        if (strstr(buf, "mcu") && strstr(buf, "live")) {
+            return tr;
+        }
+    }
+    return GetMasterTrack(0);
+}
+
+MediaTrack* GetTrackFromID(int idx, bool mcpView)
+{
+    auto res = CSurf_TrackFromID(idx, mcpView);
+    if (res != GetMasterTrack(0)) {
+        return res;
+    }
+    return FindOutputTrack();
+}
+#define CSurf_TrackFromID GetTrackFromID
+
+// int GetTrackToID(MediaTrack* trackid, bool mcpView)
+// {
+//     auto tr = FindOutputTrack();
+//     if (tr != GetMasterTrack(0) && trackid == GetMasterTrack(0)) {
+//         return -1;
+//     }
+//     if (tr == trackid) {
+//         return 8;
+//     }
+//     return CSurf_TrackToID()
+// }
+// #define CSurf_TrackToID GetTrackToID
 
 static double int14ToVol(unsigned char msb, unsigned char lsb)
 {
@@ -682,15 +754,16 @@ class CSurf_MCU : public IReaperControlSurface {
         return true;
     }
 
-    bool OnRecArm(MIDI_event_t* evt)
-    {
-        int tid = evt->midi_message[1];
-        tid += GetBankOffset();
-        MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
-        if (tr)
-            CSurf_OnRecArmChange(tr, -1);
-        return true;
-    }
+    // bool OnRecArm(MIDI_event_t* evt)
+    // {
+    //     int tid = evt->midi_message[1];
+    //     tid += GetBankOffset();
+    //     MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
+    //     if (tr)
+    //         CSurf_OnRecArmChange(tr, -1);
+
+    //     return true;
+    // }
 
     bool OnMuteSolo(MIDI_event_t* evt)
     {
@@ -725,10 +798,12 @@ class CSurf_MCU : public IReaperControlSurface {
         tid &= 7;
         tid += GetBankOffset();
         MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
-        if (tr)
+        if (tr) {
             CSurf_OnSelectedChange(
                 tr,
                 -1); // this will automatically update the surface
+            SetOnlyTrackSelected(tr);
+        }
         return true;
     }
 
@@ -742,8 +817,8 @@ class CSurf_MCU : public IReaperControlSurface {
         // Clear already selected tracks
         SelectedTrack* i = m_selected_tracks;
         while (i) {
-            // Call to OnSelectedChange will cause 'i' to be destroyed, so go
-            // ahead and get 'next' now
+            // Call to OnSelectedChange will cause 'i' to be destroyed, so
+            // go ahead and get 'next' now
             SelectedTrack* next = i->next;
             MediaTrack* track = i->track();
             if (track)
@@ -877,7 +952,7 @@ class CSurf_MCU : public IReaperControlSurface {
         TrackList_UpdateAllExternalSurfaces();
         WritePrivateProfileString(
             "csurf",
-            "mcu_mcp",
+            "mculive_mcp",
             g_csurf_mcpmode ? "1" : "0",
             get_ini_file());
         return true;
@@ -1039,7 +1114,12 @@ class CSurf_MCU : public IReaperControlSurface {
     {
 #if 0
         char buf[512];
-        sprintf(buf,"message %02x, %02x, %02x\n",evt->midi_message[0],evt->midi_message[1],evt->midi_message[2]);
+        sprintf(
+            buf,
+            "message %02x, %02x, %02x\n",
+            evt->midi_message[0],
+            evt->midi_message[1],
+            evt->midi_message[2]);
         OutputDebugString(buf);
 #endif
 
@@ -1159,17 +1239,15 @@ class CSurf_MCU : public IReaperControlSurface {
 
     const char* GetTypeString()
     {
-        return m_is_mcuex ? "MCUEX" : "MCU";
+        return m_is_mcuex ? "MCULIVEEX" : "MCULIVE";
     }
     const char* GetDescString()
     {
         m_descspace.SetFormatted(
             512,
             m_is_mcuex
-                ? __LOCALIZE_VERFMT(
-                      "Mackie Control Extended (dev %d,%d)",
-                      "csurf")
-                : __LOCALIZE_VERFMT("Mackie Control (dev %d,%d)", "csurf"),
+                ? __LOCALIZE_VERFMT("MCU Live Extender (dev %d,%d)", "csurf")
+                : __LOCALIZE_VERFMT("MCU Live (dev %d,%d)", "csurf"),
             m_midi_in_dev,
             m_midi_out_dev);
         return m_descspace.Get();
@@ -1277,8 +1355,11 @@ class CSurf_MCU : public IReaperControlSurface {
                     m_vol_lastpos[x] = panint;
 
                     m_midiout->Send(0x90, 0x10 + (x & 7), 0, -1); // reset mute
-                    m_midiout
-                        ->Send(0x90, 0x18 + (x & 7), 0, -1); // reset selected
+                    m_midiout->Send(
+                        0x90,
+                        0x18 + (x & 7),
+                        0,
+                        -1); // reset selected
 
                     m_midiout->Send(0x90, 0x08 + (x & 7), 0, -1); // reset solo
                     m_midiout->Send(0x90, 0x0 + (x & 7), 0, -1); // reset recarm
@@ -1325,7 +1406,19 @@ class CSurf_MCU : public IReaperControlSurface {
 
     void SetSurfaceVolume(MediaTrack* trackid, double volume)
     {
+        auto hasMcuMaster {false};
+        auto mcuMaster = FindOutputTrack();
+        if (mcuMaster != GetMasterTrack(0)) {
+            hasMcuMaster = true;
+        }
+
         FIXID(id)
+
+        // ignore standard master
+        if (hasMcuMaster && id == 8) {
+            id = -1;
+        }
+
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             if (m_flipmode) {
                 unsigned char volch = volToChar(volume);
@@ -1347,6 +1440,20 @@ class CSurf_MCU : public IReaperControlSurface {
                         (volint >> 7) & 0x7f,
                         -1);
                 }
+            }
+        }
+
+        // discrete master
+        if (m_midiout && hasMcuMaster && trackid == mcuMaster && !m_flipmode) {
+            id = 8;
+            int volint = volToInt14(volume);
+            if (m_vol_lastpos[id] != volint) {
+                m_vol_lastpos[id] = volint;
+                m_midiout->Send(
+                    0xe0 + (id & 0xf),
+                    volint & 0x7f,
+                    (volint >> 7) & 0x7f,
+                    -1);
             }
         }
     }
@@ -1392,10 +1499,12 @@ class CSurf_MCU : public IReaperControlSurface {
 
     void SetSurfaceSelected(MediaTrack* trackid, bool selected)
     {
-        if (selected)
+        if (selected) {
             selectTrack(trackid);
-        else
+        }
+        else {
             deselectTrack(trackid);
+        }
 
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
@@ -1469,28 +1578,38 @@ class CSurf_MCU : public IReaperControlSurface {
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             if (id < 8)
-                m_midiout
-                    ->Send(0x90, 0x08 + (id & 7), solo ? 1 : 0, -1); // blink
+                m_midiout->Send(
+                    0x90,
+                    0x08 + (id & 7),
+                    solo ? 1 : 0,
+                    -1); // blink
             else if (id == 8) {
                 // Hmm, seems to call this with id 8 to tell if any
                 // tracks are soloed.
                 m_midiout
                     ->Send(0x90, 0x73, solo ? 1 : 0, -1); // rude solo light
-                m_midiout
-                    ->Send(0x90, 0x5a, solo ? 0x7f : 0, -1); // solo button led
+                m_midiout->Send(
+                    0x90,
+                    0x5a,
+                    solo ? 0x7f : 0,
+                    -1); // solo button led
             }
         }
     }
 
     void SetSurfaceRecArm(MediaTrack* trackid, bool recarm)
     {
-        FIXID(id)
-        if (m_midiout && id >= 0 && id < 256 && id < m_size) {
-            if (id < 8) {
-                m_midiout->Send(0x90, 0x0 + (id & 7), recarm ? 0x7f : 0, -1);
-            }
-        }
+        (void)trackid;
+        (void)recarm;
+        return;
+        // FIXID(id)
+        // if (m_midiout && id >= 0 && id < 256 && id < m_size) {
+        //     if (id < 8) {
+        //         m_midiout->Send(0x90, 0x0 + (id & 7), recarm ? 0x7f : 0, -1);
+        //     }
+        // }
     }
+
     void SetPlayState(bool play, bool pause, bool rec)
     {
         if (m_midiout && !m_is_mcuex) {
@@ -1651,6 +1770,55 @@ class CSurf_MCU : public IReaperControlSurface {
                 }
             }
         }
+    }
+
+    // rec buttons as page navigatores
+    bool OnRecArm(MIDI_event_t* evt)
+    {
+        int tid = evt->midi_message[1];
+        if (m_midiout) {
+            for (int i = 0; i < 8; i++) {
+                m_midiout->Send(0x90, 0x0 + (i & 7), i == tid ? 0x7f : 0, -1);
+            }
+        }
+        // tid += GetBankOffset();
+        int x;
+        int movesize = 8;
+        for (x = 0; x < m_mcu_list.GetSize(); x++) {
+            CSurf_MCU* mcu = m_mcu_list.Get(x);
+            if (mcu && !(mcu->m_cfg_flags & CONFIG_FLAG_NOBANKOFFSET)) {
+                if (mcu->m_offset + 8 > movesize)
+                    movesize = mcu->m_offset + 8;
+            }
+        }
+
+        int newpos = tid * movesize;
+        if (newpos >= 0 && (newpos < m_allmcus_bank_offset ||
+                            newpos >= m_allmcus_bank_offset + movesize)) {
+            int no = newpos - (newpos % movesize);
+
+            if (no != m_allmcus_bank_offset) {
+                m_allmcus_bank_offset = no;
+                // update all of the sliders
+                TrackList_UpdateAllExternalSurfaces();
+                for (x = 0; x < m_mcu_list.GetSize(); x++) {
+                    CSurf_MCU* mcu = m_mcu_list.Get(x);
+                    if (mcu && !mcu->m_is_mcuex && mcu->m_midiout) {
+                        mcu->m_midiout->Send(
+                            0xB0,
+                            0x40 + 11,
+                            '0' + (((m_allmcus_bank_offset + 1) / 10) % 10),
+                            -1);
+                        mcu->m_midiout->Send(
+                            0xB0,
+                            0x40 + 10,
+                            '0' + ((m_allmcus_bank_offset + 1) % 10),
+                            -1);
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     bool IsKeyDown(int key)
@@ -1868,8 +2036,8 @@ void CSurf_MCU::RunOutput(DWORD now)
             }
         }
 
-        // 0xD0 = level meter, hi nibble = channel index, low = level (F=clip,
-        // E=top)
+        // 0xD0 = level meter, hi nibble = channel index, low = level
+        // (F=clip, E=top)
         //      m_midiout->Send(0xD0,0x1E,0);
         //
         if (__g_projectconfig_metronome_en) {
@@ -1893,10 +2061,9 @@ void CSurf_MCU::RunOutput(DWORD now)
 #define VU_BOTTOM 70
         double decay = 0.0;
         if (m_mcu_meter_lastrun) {
-            decay =
-                VU_BOTTOM * (double)(now - m_mcu_meter_lastrun) /
-                (1.4 *
-                 1000.0); // they claim 1.8s for falloff but we'll underestimate
+            decay = VU_BOTTOM * (double)(now - m_mcu_meter_lastrun) /
+                    (1.4 * 1000.0); // they claim 1.8s for falloff but we'll
+                                    // underestimate
         }
         m_mcu_meter_lastrun = now;
         for (x = 0; x < 8; x++) {
@@ -1938,11 +2105,11 @@ static IReaperControlSurface* createFunc(
     if (!init) {
         init = true;
         g_csurf_mcpmode =
-            !!GetPrivateProfileInt("csurf", "mcu_mcp", 0, get_ini_file());
+            !!GetPrivateProfileInt("csurf", "mculive_mcp", 0, get_ini_file());
     }
 
     return new CSurf_MCU(
-        !strcmp(type_string, "MCUEX"),
+        !strcmp(type_string, "MCULIVEEX"),
         parms[0],
         parms[1],
         parms[2],
@@ -2086,18 +2253,19 @@ static HWND configFunc(
 }
 
 reaper_csurf_reg_t csurf_mcu_reg = {
-    "MCUAK5K",
+    "MCULIVE",
     // !WANT_LOCALIZE_STRINGS_BEGIN:csurf_type
-    "Mackie Control Universal ak5k",
+    "MCU Live",
     // !WANT_LOCALIZE_STRINGS_END
     createFunc,
     configFunc,
 };
 reaper_csurf_reg_t csurf_mcuex_reg = {
-    "MCUEXAK5K",
+    "MCULIVEEX",
     // !WANT_LOCALIZE_STRINGS_BEGIN:csurf_type
-    "Mackie Control Extender ak5k",
+    "MCU Live Extender",
     // !WANT_LOCALIZE_STRINGS_END
     createFunc,
     configFunc,
 };
+} // namespace ReaMCULive

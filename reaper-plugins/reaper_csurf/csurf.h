@@ -10,6 +10,8 @@
 #include "resource.h"
 #include <stdio.h>
 
+namespace ReaMCULive {
+
 enum {
     HZOOM_EDITPLAYCUR = 0,
     HZOOM_EDITCUR = 1,
@@ -99,3 +101,4 @@ midi_Output* CreateThreadedMIDIOutput(
     }
 
 #endif
+}

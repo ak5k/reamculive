@@ -132,7 +132,7 @@ if(WIN32)
     /wd4996
     /wd4244
     )
-   target_compile_definitions(common INTERFACE NOMINMAX)
+   target_compile_definitions(common INTERFACE NOMINMAX )
 else()
   target_compile_options(common INTERFACE
     -Wall -Wextra -Werror 
