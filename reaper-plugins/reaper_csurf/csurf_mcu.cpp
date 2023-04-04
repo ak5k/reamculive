@@ -119,20 +119,55 @@ PC=>MCU:
 
 namespace ReaMCULive {
 
-MediaTrack* FindOutputTrack()
+MediaTrack* GetOutputTrack()
 {
-    char buf[BUFSIZ];
+    static MediaTrack* res = nullptr;
+
+    if (res != nullptr && ValidatePtr2(0, res, "MediaTrack*")) {
+        return res;
+    }
+    else {
+        res = nullptr;
+    }
+
+    char buf[BUFSIZ] {};
+    char gbuf[BUFSIZ] {};
+    GUID* g {};
+    GetProjExtState(0, "ak5k", "mculiveout", buf, BUFSIZ);
+
     for (int i = 0; i < GetNumTracks(); i++) {
         auto tr = GetTrack(0, i);
-        GetTrackName(tr, buf, BUFSIZ);
-        for (size_t i = 0; buf[i] != '\0'; i++) {
-            buf[i] = tolower(buf[i]);
-        }
-        if (strstr(buf, "mcu") && strstr(buf, "live")) {
-            return tr;
+        g = GetTrackGUID(tr);
+        guidToString(g, gbuf);
+        if (strcmp(buf, gbuf) == 0) {
+            res = tr;
         }
     }
-    return GetMasterTrack(0);
+
+    if (res == nullptr) {
+        for (int i = 0; i < GetNumTracks(); i++) {
+            auto tr = GetTrack(0, i);
+            GetTrackName(tr, buf, BUFSIZ);
+            for (size_t i = 0; buf[i] != '\0'; i++) {
+                buf[i] = tolower(buf[i]);
+            }
+            if (strstr(buf, "mcu") && strstr(buf, "live")) {
+                res = tr;
+                break;
+            }
+        }
+    }
+
+    if (res != nullptr) {
+        g = GetTrackGUID(res);
+        guidToString(g, buf);
+        SetProjExtState(0, "ak5k", "mculiveout", buf);
+    }
+    else {
+        res = GetMasterTrack(0);
+    }
+
+    return res;
 }
 
 MediaTrack* GetTrackFromID(int idx, bool mcpView)
@@ -141,7 +176,7 @@ MediaTrack* GetTrackFromID(int idx, bool mcpView)
     if (res != GetMasterTrack(0)) {
         return res;
     }
-    return FindOutputTrack();
+    return GetOutputTrack();
 }
 #define CSurf_TrackFromID GetTrackFromID
 
@@ -529,15 +564,30 @@ class CSurf_MCU : public IReaperControlSurface {
                     m_repos_faders = true;
                 }
                 else if (m_flipmode) {
-                    CSurf_SetSurfacePan(
-                        tr,
-                        CSurf_OnPanChange(
-                            tr,
-                            int14ToPan(
-                                evt->midi_message[2],
-                                evt->midi_message[1]),
-                            false),
-                        NULL);
+                    for (int i = 0; i < GetTrackNumSends(tr, 0); i++) {
+                        auto dst = (MediaTrack*)(uintptr_t)
+                            GetTrackSendInfo_Value(tr, 0, i, "P_DESTTRACK");
+                        if (GetSelectedTrack(0, 0) == dst) {
+                            CSurf_OnSendVolumeChange(
+                                tr,
+                                i,
+                                int14ToVol(
+                                    evt->midi_message[2],
+                                    evt->midi_message[1]),
+                                false);
+                            break;
+                        }
+                    }
+                    // CSurf_SetSurfacePan(
+
+                    //     tr,
+                    //     CSurf_OnPanChange(
+                    //         tr,
+                    //         int14ToPan(
+                    //             evt->midi_message[2],
+                    //             evt->midi_message[1]),
+                    //         false),
+                    //     NULL);
                 }
                 else
                     CSurf_SetSurfaceVolume(
@@ -765,6 +815,28 @@ class CSurf_MCU : public IReaperControlSurface {
     //     return true;
     // }
 
+    int GetSendIndex(MediaTrack* src, MediaTrack* dst = GetSelectedTrack(0, 0))
+    {
+        for (int i = 0; i < GetTrackNumSends(src, 0); i++) {
+            auto tr = (MediaTrack*)(uintptr_t)
+                GetTrackSendInfo_Value(src, 0, i, "P_DESTTRACK");
+            if (tr == dst) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    bool isSendMuted(MediaTrack* tr, int idx)
+    {
+        if (idx >= 0) {
+            return (bool)GetTrackSendInfo_Value(tr, 0, idx, "B_MUTE");
+        }
+        else {
+            return true;
+        }
+    }
+
     bool OnMuteSolo(MIDI_event_t* evt)
     {
         int tid = evt->midi_message[1] - 0x08;
@@ -775,7 +847,19 @@ class CSurf_MCU : public IReaperControlSurface {
         MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
         if (tr) {
             if (ismute)
-                CSurf_SetSurfaceMute(tr, CSurf_OnMuteChange(tr, -1), NULL);
+                if (!m_flipmode) {
+                    CSurf_SetSurfaceMute(tr, CSurf_OnMuteChange(tr, -1), NULL);
+                }
+                else {
+                    auto idx = GetSendIndex(tr);
+                    if (idx < 0) {
+                        idx = CreateTrackSend(tr, GetSelectedTrack(0, 0));
+                        SetTrackSendInfo_Value(tr, 0, idx, "B_MUTE", 1);
+                    }
+                    auto isMuted = isSendMuted(tr, idx);
+                    SetTrackSendInfo_Value(tr, 0, idx, "B_MUTE", !isMuted);
+                    SetSurfaceMute(tr, !isMuted);
+                }
             else
                 CSurf_SetSurfaceSolo(tr, CSurf_OnSoloChange(tr, -1), NULL);
         }
@@ -803,6 +887,10 @@ class CSurf_MCU : public IReaperControlSurface {
                 tr,
                 -1); // this will automatically update the surface
             SetOnlyTrackSelected(tr);
+            if (m_flipmode) {
+                CSurf_ResetAllCachedVolPanStates();
+                TrackList_UpdateAllExternalSurfaces();
+            }
         }
         return true;
     }
@@ -1407,7 +1495,7 @@ class CSurf_MCU : public IReaperControlSurface {
     void SetSurfaceVolume(MediaTrack* trackid, double volume)
     {
         auto hasMcuMaster {false};
-        auto mcuMaster = FindOutputTrack();
+        auto mcuMaster = GetOutputTrack();
         if (mcuMaster != GetMasterTrack(0)) {
             hasMcuMaster = true;
         }
@@ -1458,42 +1546,70 @@ class CSurf_MCU : public IReaperControlSurface {
         }
     }
 
+    double GetSendLevel(
+        MediaTrack* src,
+        MediaTrack* dst = GetSelectedTrack(0, 0))
+    {
+        double res {0};
+        if (!dst) {
+            return res;
+        }
+        for (int i = 0; i < GetTrackNumSends(src, 0); i++) {
+            auto tr = (MediaTrack*)(uintptr_t)
+                GetTrackSendInfo_Value(src, 0, i, "P_DESTTRACK");
+            if (tr == dst) {
+                res = GetTrackSendInfo_Value(src, 0, i, "D_VOL");
+                break;
+            }
+        }
+        return res;
+    }
+
     void SetSurfacePan(MediaTrack* trackid, double pan)
     {
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             unsigned char panch = panToChar(pan);
-            if (m_pan_lastpos[id] != panch) {
-                m_pan_lastpos[id] = panch;
+            // if (m_pan_lastpos[id] != panch) {
+            m_pan_lastpos[id] = panch;
 
-                if (m_flipmode) {
-                    int panint = panToInt14(pan);
-                    if (m_vol_lastpos[id] != panint) {
-                        m_vol_lastpos[id] = panint;
-                        m_midiout->Send(
-                            0xe0 + (id & 0xf),
-                            panint & 0x7f,
-                            (panint >> 7) & 0x7f,
-                            -1);
-                    }
-                }
-                else {
-                    if (id < 8)
-                        m_midiout->Send(
-                            0xb0,
-                            0x30 + (id & 0xf),
-                            1 + ((panch * 11) >> 7),
-                            -1);
-                }
+            if (m_flipmode) {
+                // int panint = panToInt14(pan);
+                int panint = volToInt14(GetSendLevel(trackid));
+                m_vol_lastpos[id] = panint;
+                m_midiout->Send(
+                    0xe0 + (id & 0xf),
+                    panint & 0x7f,
+                    (panint >> 7) & 0x7f,
+                    -1);
             }
+            else {
+                if (id < 8)
+                    m_midiout->Send(
+                        0xb0,
+                        0x30 + (id & 0xf),
+                        1 + ((panch * 11) >> 7),
+                        -1);
+            }
+            // }
         }
     }
     void SetSurfaceMute(MediaTrack* trackid, bool mute)
     {
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
-            if (id < 8)
-                m_midiout->Send(0x90, 0x10 + (id & 7), mute ? 0x7f : 0, -1);
+            if (id < 8) {
+                if (!m_flipmode) {
+                    m_midiout->Send(0x90, 0x10 + (id & 7), mute ? 0x7f : 0, -1);
+                }
+                else {
+                    m_midiout->Send(
+                        0x90,
+                        0x10 + (id & 7),
+                        isSendMuted(trackid, GetSendIndex(trackid)) ? 0x7f : 0,
+                        -1);
+                }
+            }
         }
     }
 
@@ -1605,7 +1721,8 @@ class CSurf_MCU : public IReaperControlSurface {
         // FIXID(id)
         // if (m_midiout && id >= 0 && id < 256 && id < m_size) {
         //     if (id < 8) {
-        //         m_midiout->Send(0x90, 0x0 + (id & 7), recarm ? 0x7f : 0, -1);
+        //         m_midiout->Send(0x90, 0x0 + (id & 7), recarm ? 0x7f : 0,
+        //         -1);
         //     }
         // }
     }
@@ -1766,6 +1883,15 @@ class CSurf_MCU : public IReaperControlSurface {
                             0x40 + 10,
                             '0' + ((m_allmcus_bank_offset + 1) % 10),
                             -1);
+
+                        // maybe?
+                        for (int i = 0; i < 8; i++) {
+                            mcu->m_midiout->Send(
+                                0x90,
+                                0x0 + (i & 7),
+                                i == no / movesize ? 0x7f : 0,
+                                -1);
+                        }
                     }
                 }
             }
@@ -1776,11 +1902,6 @@ class CSurf_MCU : public IReaperControlSurface {
     bool OnRecArm(MIDI_event_t* evt)
     {
         int tid = evt->midi_message[1];
-        if (m_midiout) {
-            for (int i = 0; i < 8; i++) {
-                m_midiout->Send(0x90, 0x0 + (i & 7), i == tid ? 0x7f : 0, -1);
-            }
-        }
         // tid += GetBankOffset();
         int x;
         int movesize = 8;
@@ -1818,6 +1939,11 @@ class CSurf_MCU : public IReaperControlSurface {
                 }
             }
         }
+        if (m_midiout) {
+            for (int i = 0; i < 8; i++) {
+                m_midiout->Send(0x90, 0x0 + (i & 7), i == tid ? 0x7f : 0, -1);
+            }
+        }
         return true;
     }
 
@@ -1837,6 +1963,13 @@ class CSurf_MCU : public IReaperControlSurface {
     virtual int Extended(int call, void* parm1, void* parm2, void* parm3)
     {
         DEFAULT_DEVICE_REMAP()
+        if (call == CSURF_EXT_SETSENDVOLUME && m_flipmode) {
+            auto tr = (MediaTrack*)parm1;
+            // auto idx = *(int*)parm2;
+            auto volume = *(double*)parm3;
+            SetSurfacePan(tr, volume);
+            return 1;
+        }
         return 0;
     }
 };
