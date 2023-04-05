@@ -1103,7 +1103,7 @@ class CSurf_MCU : public IReaperControlSurface {
         if ((evt->midi_message[0] & 0xf0) != 0x90)
             return false;
 
-        static const int nHandlers = 23;
+        static const int nHandlers = 24;
         static const int nPressOnlyHandlers = 20;
         static const ButtonHandler handlers[nHandlers] = {
             // Press down only events
@@ -1126,6 +1126,7 @@ class CSurf_MCU : public IReaperControlSurface {
             {0x51, 0x51, &CSurf_MCU::OnUndo, NULL},
             {0x64, 0x64, &CSurf_MCU::OnZoom, NULL},
             {0x65, 0x65, &CSurf_MCU::OnScrub, NULL},
+            {0x29, 0x29, &CSurf_MCU::OnFlip, NULL}, // sends as flip
             {0x32, 0x32, &CSurf_MCU::OnFlip, NULL},
             {0x33, 0x33, &CSurf_MCU::OnGlobal, NULL},
             {0x36, 0x3d, &CSurf_MCU::OnFunctionKey, NULL},
