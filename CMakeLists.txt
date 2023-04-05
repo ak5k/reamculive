@@ -50,13 +50,12 @@ if(VCPKG_TOOLCHAIN)
 endif()
 
 if(NOT EXISTS ${PROJECT_SOURCE_DIR}/external/WDL/WDL)
-    execute_process(
+  execute_process(
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --depth 1 
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       )
-    
+  file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WDL SYMBOLIC)
 endif()
-file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WDL SYMBOLIC)
 if (NOT WIN32)
   # file(COPY_FILE ${PROJECT_SOURCE_DIR}/reaper-plugins/reaper_csurf/res.rc ${PROJECT_SOURCE_DIR}/WDL/swell/)
   execute_process(
