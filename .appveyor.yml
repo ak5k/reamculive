@@ -57,7 +57,7 @@ for:
     build_script:
     - cmake -B build -DCMAKE_BUILD_TYPE=Release
       -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
-    - cmake --build build --target reaper_reamcusof
+    - cmake --build build --target reaper_reamculive
 
     artifacts:
       - path: build/reaper_*.so
@@ -84,7 +84,7 @@ for:
     - cmake -B build -DCMAKE_BUILD_TYPE=Release
       -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
       -DCMAKE_OSX_ARCHITECTURES=$ARCH
-    - cmake --build build --target reaper_reamcusof
+    - cmake --build build --target reaper_reamculive
 
     artifacts:
       - path: build/reaper_*.dylib

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(reaper_reamcusof LANGUAGES C CXX)
+project(reaper_reamculive LANGUAGES C CXX)
 
 include(CheckCompilerFlag)
 include(CheckCXXSourceCompiles)
@@ -20,7 +20,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   endif()
 
   set(CMAKE_INSTALL_PREFIX "${USER_CONFIG_DIR}/REAPER" CACHE PATH
-    "REAPER resource path where to install reamcusof" FORCE)
+    "REAPER resource path where to install reamculive" FORCE)
 endif()
 
 if(CMAKE_OSX_ARCHITECTURES)
@@ -170,17 +170,17 @@ if(WIN32)
 endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/reaper-plugins/reaper_csurf)
-target_link_libraries(reamcusof common)
-target_link_libraries(${PROJECT_NAME} reamcusof)
+target_link_libraries(reamculive common)
+target_link_libraries(${PROJECT_NAME} reamculive)
 
 find_package(WDL REQUIRED)
-target_link_libraries(reamcusof WDL::WDL)
+target_link_libraries(reamculive WDL::WDL)
 
 if(NOT WIN32)
   find_package(SWELL REQUIRED)
-  target_link_libraries(reamcusof SWELL::swell)
+  target_link_libraries(reamculive SWELL::swell)
   if(NOT APPLE)
-    target_link_libraries(reamcusof Threads::Threads)
+    target_link_libraries(reamculive Threads::Threads)
   endif()
 endif()
 
