@@ -49,7 +49,7 @@ if(VCPKG_TOOLCHAIN)
   set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 endif()
 
-if(NOT EXISTS ${PROJECT_SOURCE_DIR}/external/WDL)
+if(NOT EXISTS ${PROJECT_SOURCE_DIR}/external/WDL/WDL)
     execute_process(
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --depth 1 
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
