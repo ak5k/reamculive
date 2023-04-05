@@ -628,8 +628,9 @@ class CSurf_MCU : public IReaperControlSurface {
                         auto dst = (MediaTrack*)(uintptr_t)
                             GetTrackSendInfo_Value(tr, 0, i, "P_DESTTRACK");
                         if (GetSelectedTrack(0, 0) == dst) {
-                            SetTrackSendInfo_Value(tr, 0, i, "D_PAN", ) break;
-                                                }
+                            CSurf_OnSendPanChange(tr, i, adj, true);
+                            break;
+                        }
                     }
                     // CSurf_SetSurfaceVolume(
                     //     tr,
@@ -1520,7 +1521,9 @@ class CSurf_MCU : public IReaperControlSurface {
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             if (m_flipmode) {
                 // unsigned char volch = volToChar(volume);
-                unsigned char volch = panToChar(volume);
+                auto idx = GetSendIndex(trackid);
+                auto pan = GetTrackSendInfo_Value(trackid, 0, idx, "D_PAN");
+                unsigned char volch = panToChar(pan);
                 if (id < 8)
                     m_midiout->Send(
                         0xb0,
