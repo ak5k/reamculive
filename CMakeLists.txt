@@ -54,6 +54,8 @@ if(NOT EXISTS ${PROJECT_SOURCE_DIR}/external/WDL/WDL)
       COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --depth 1 
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
       )
+endif()
+if(NOT EXISTS ${PROJECT_SOURCE_DIR}/WDL)
   file(CREATE_LINK ${PROJECT_SOURCE_DIR}/external/WDL/WDL ${PROJECT_SOURCE_DIR}/WDL SYMBOLIC)
 endif()
 if (NOT WIN32)

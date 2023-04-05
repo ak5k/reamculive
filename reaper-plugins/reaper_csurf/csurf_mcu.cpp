@@ -624,10 +624,17 @@ class CSurf_MCU : public IReaperControlSurface {
                 if (evt->midi_message[2] & 0x40)
                     adj = -adj;
                 if (m_flipmode) {
-                    CSurf_SetSurfaceVolume(
-                        tr,
-                        CSurf_OnVolumeChange(tr, adj * 11.0, true),
-                        NULL);
+                    for (int i = 0; i < GetTrackNumSends(tr, 0); i++) {
+                        auto dst = (MediaTrack*)(uintptr_t)
+                            GetTrackSendInfo_Value(tr, 0, i, "P_DESTTRACK");
+                        if (GetSelectedTrack(0, 0) == dst) {
+                            SetTrackSendInfo_Value(tr, 0, i, "D_PAN", ) break;
+                                                }
+                    }
+                    // CSurf_SetSurfaceVolume(
+                    //     tr,
+                    //     CSurf_OnVolumeChange(tr, adj * 11.0, true),
+                    //     NULL);
                 }
                 else {
                     CSurf_SetSurfacePan(
@@ -924,19 +931,21 @@ class CSurf_MCU : public IReaperControlSurface {
     {
         switch (evt->midi_message[1]) {
         case 0x5f:
-            CSurf_OnRecord();
+            // CSurf_OnRecord();
             break;
         case 0x5e:
-            CSurf_OnPlay();
+            // CSurf_OnPlay();
             break;
         case 0x5d:
-            CSurf_OnStop();
+            // CSurf_OnStop();
             break;
         case 0x5b:
-            SendMessage(g_hwnd, WM_COMMAND, ID_MARKER_PREV, 0);
+            // SendMessage(g_hwnd, WM_COMMAND, ID_MARKER_PREV, 0);
+            Main_OnCommand(40340, 0);
             break;
         case 0x5c:
-            SendMessage(g_hwnd, WM_COMMAND, ID_MARKER_NEXT, 0);
+            // SendMessage(g_hwnd, WM_COMMAND, ID_MARKER_NEXT, 0);
+            ;
         }
         return true;
     }
@@ -1510,7 +1519,8 @@ class CSurf_MCU : public IReaperControlSurface {
 
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             if (m_flipmode) {
-                unsigned char volch = volToChar(volume);
+                // unsigned char volch = volToChar(volume);
+                unsigned char volch = panToChar(volume);
                 if (id < 8)
                     m_midiout->Send(
                         0xb0,
@@ -1968,7 +1978,16 @@ class CSurf_MCU : public IReaperControlSurface {
             auto tr = (MediaTrack*)parm1;
             // auto idx = *(int*)parm2;
             auto volume = *(double*)parm3;
+            // when flipped pan is volume
             SetSurfacePan(tr, volume);
+            return 1;
+        }
+        if (call == CSURF_EXT_SETSENDPAN && m_flipmode) {
+            auto tr = (MediaTrack*)parm1;
+            // auto idx = *(int*)parm2;
+            auto pan = *(double*)parm3;
+            // when flipped pan is volume
+            SetSurfaceVolume(tr, pan);
             return 1;
         }
         return 0;
