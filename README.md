@@ -8,3 +8,4 @@
 * Mute enables/disables send to selected target track when flipped.
 * V-Pots as send pans when flipped.
 * Works nicely in tandem with ReaSolotus.
+* If track with name containing words 'mcu' and 'live' is found, Master fader gets attached to it.

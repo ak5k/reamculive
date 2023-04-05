@@ -121,7 +121,7 @@ namespace ReaMCULive {
 
 MediaTrack* GetOutputTrack()
 {
-    static MediaTrack* res = nullptr;
+    static MediaTrack* res {nullptr};
 
     if (res != nullptr && ValidatePtr2(0, res, "MediaTrack*")) {
         return res;
@@ -162,12 +162,10 @@ MediaTrack* GetOutputTrack()
         g = GetTrackGUID(res);
         guidToString(g, buf);
         SetProjExtState(0, "ak5k", "mculiveout", buf);
-    }
-    else {
-        res = GetMasterTrack(0);
+        return res;
     }
 
-    return res;
+    return GetMasterTrack(0);
 }
 
 MediaTrack* GetTrackFromID(int idx, bool mcpView)
