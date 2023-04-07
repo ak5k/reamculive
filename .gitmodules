@@ -1,0 +1,6 @@
+[submodule "external/reaper-sdk"]
+	path = external/reaper-sdk
+	url = https://github.com/justinfrankel/reaper-sdk
+[submodule "external/WDL"]
+	path = external/WDL
+	url = https://github.com/justinfrankel/WDL
