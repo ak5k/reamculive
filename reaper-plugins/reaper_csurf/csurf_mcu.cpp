@@ -7,9 +7,7 @@
 #include "reascript_vararg.hpp"
 
 #include <algorithm>
-#include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <mutex>
 #include <vector>
 
@@ -25,11 +23,10 @@
 // #define SPLASH_MESSAGE "Spacelab Recording Studio"
 // #else
 #define SPLASH_MESSAGE "ak5k MCU Live"
+// #endif
 
 #undef BUFSIZ
 #define BUFSIZ 256
-
-// #endif
 
 namespace ReaMCULive {
 
