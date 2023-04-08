@@ -138,7 +138,8 @@ else()
   target_compile_options(common INTERFACE
     -Wall -Wextra -Werror 
     -Wno-multichar -Wno-sign-compare -Wno-unused-function
-    -Wno-unused-parameter -Wno-missing-field-initializers -Wno-missing-braces
+    -Wno-unused-parameter -Wno-missing-field-initializers 
+    -Wno-missing-braces -Wno-unused-variable
   )
 endif()
 
