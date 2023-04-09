@@ -145,32 +145,32 @@ static int g_allmcus_bank_offset {};
 static int g_split_bank_offset {};
 
 static int g_flip_is_global {};
-static int g_mode_is_global {-1 + (1 << 1)}; // mask for global modes
+static int g_mode_is_global {}; // mask for global modes
 
 static int g_is_split {0};
 static int g_split_offset {0};
-static int g_split_point_idx {1}; // surface split point device index
+static int g_split_point_idx {0}; // surface split point device index
 
 std::mutex g_mutex;
 
 typedef void (CSurf_MCULive::*ScheduleFunc)();
 
-struct ScheduledAction {
-    ScheduledAction(DWORD time, ScheduleFunc func)
-    {
-        this->next = NULL;
-        this->time = time;
-        this->func = func;
-    }
+// struct ScheduledAction {
+//     ScheduledAction(double time, ScheduleFunc func)
+//     {
+//         this->next = NULL;
+//         this->time = time;
+//         this->func = func;
+//     }
 
-    ScheduledAction* next;
-    DWORD time;
-    ScheduleFunc func;
-};
+//     ScheduledAction* next;
+//     double time;
+//     ScheduleFunc func;
+// };
 
 #define CONFIG_FLAG_FADER_TOUCH_MODE 1
 
-#define DOUBLE_CLICK_INTERVAL 250 /* ms */
+#define DOUBLE_CLICK_INTERVAL 0.250 /* ms */
 MediaTrack* TrackFromGUID(const GUID& guid)
 {
     // for (TrackIterator ti; !ti.end(); ++ti) {
@@ -188,6 +188,7 @@ MediaTrack* TrackFromGUID(const GUID& guid)
 class CSurf_MCULive : public IReaperControlSurface {
   public:
     bool m_is_mcuex;
+    bool m_is_default {true};
     int m_midi_in_dev;
     int m_midi_out_dev;
     int m_offset;
@@ -197,18 +198,21 @@ class CSurf_MCULive : public IReaperControlSurface {
     midi_Output* m_midiout;
     midi_Input* m_midiin;
 
-    int m_vol_lastpos[8];
-    int m_pan_lastpos[8];
+    int m_vol_lastpos[BUFSIZ];
+    int m_pan_lastpos[BUFSIZ];
     char m_mackie_lasttime[10];
     int m_mackie_lasttime_mode;
     int m_mackie_modifiers;
     int m_cfg_flags;      // CONFIG_FLAG_FADER_TOUCH_MODE etc
     int m_last_miscstate; // &1=metronome
 
+    int m_fader_pos[BUFSIZ] {};
+    int m_encoder_pos[BUFSIZ] {};
+
     int m_button_map[BUFSIZ] {};
-    int m_passthru_buttons[BUFSIZ] {};
+    int m_buttons_passthrough[BUFSIZ] {};
     int m_press_only_buttons[BUFSIZ] {};
-    int m_button_pressed[BUFSIZ] {};
+    int m_button_states[BUFSIZ] {};
     int m_button_remap[BUFSIZ] {};
 
     int m_page {};
@@ -217,51 +221,32 @@ class CSurf_MCULive : public IReaperControlSurface {
     int m_flipflags {1 << 0}; // allow flipmode flags
     int m_is_split;
 
-    char m_fader_touchstate[8];
-    unsigned int m_fader_lasttouch[8]; // m_fader_touchstate changes will
-                                       // clear this, moves otherwise set it.
-                                       // if set to -1, then totally disabled
-    unsigned int m_pan_lasttouch[8];
+    char m_fader_touchstate[BUFSIZ];
+    double m_fader_lasttouch[BUFSIZ]; // m_fader_touchstate changes will
+                                      // clear this, moves otherwise set it.
+                                      // if set to -1, then totally disabled
+    double m_pan_lasttouch[BUFSIZ];
 
     WDL_String m_descspace;
     char m_configtmp[4 * BUFSIZ];
 
     double m_mcu_meterpos[8];
-    DWORD m_mcu_timedisp_lastforce, m_mcu_meter_lastrun;
+    double m_mcu_timedisp_lastforce {0};
+    double m_mcu_meter_lastrun {0};
     int m_mackie_arrow_states;
-    unsigned int m_buttonstate_lastrun;
-    unsigned int m_frameupd_lastrun;
-    ScheduledAction* m_schedule;
+    double m_buttonstate_lastrun {0};
+    double m_frameupd_lastrun {0};
+    // ScheduledAction* m_schedule;
     // SelectedTrack* m_selected_tracks;
 
 // If user accidentally hits fader, we want to wait for user
 // to stop moving fader and then reset it to it's orginal position
-#define FADER_REPOS_WAIT 250
+#define FADER_REPOS_WAIT 0.250
     bool m_repos_faders;
-    DWORD m_fader_lastmove;
+    double m_fader_lastmove;
 
     int m_button_last;
-    DWORD m_button_last_time;
-
-    void ScheduleAction(DWORD time, ScheduleFunc func)
-    {
-        ScheduledAction* action = new ScheduledAction(time, func);
-        // does not handle wrapping timestamp
-        if (m_schedule == NULL) {
-            m_schedule = action;
-        }
-        else if (action->time < m_schedule->time) {
-            action->next = m_schedule;
-            m_schedule = action;
-        }
-        else {
-            ScheduledAction* curr = m_schedule;
-            while (curr->next != NULL && curr->next->time < action->time)
-                curr = curr->next;
-            action->next = curr->next;
-            curr->next = action;
-        }
-    }
+    double m_button_last_time;
 
     int GetBankOffset() const
     {
@@ -414,8 +399,29 @@ class CSurf_MCULive : public IReaperControlSurface {
             m_fader_lastmove = timeGetTime();
 
             int tid = evt->midi_message[0] & 0xf;
+
+            auto msb = evt->midi_message[2];
+            auto lsb = evt->midi_message[1];
+            auto faderVal = lsb | (msb << 7);
+
             if (tid >= 0 && tid < 9 && m_fader_lasttouch[tid] != 0xffffffff)
                 m_fader_lasttouch[tid] = m_fader_lastmove;
+
+            if (!m_is_default) {
+                if ((m_cfg_flags & CONFIG_FLAG_FADER_TOUCH_MODE) &&
+                    !m_fader_touchstate[tid]) {
+                    m_repos_faders = true;
+                }
+                else if (m_fader_pos[tid] != faderVal) {
+                    m_fader_pos[tid] = faderVal;
+                    m_midiout->Send(
+                        0xe0 + (tid & 0xf),
+                        faderVal & 0x7f,
+                        (faderVal >> 7) & 0x7f,
+                        -1);
+                }
+                return true;
+            }
 
             if (tid == 8)
                 tid = 0; // master offset, master=0
@@ -428,9 +434,13 @@ class CSurf_MCULive : public IReaperControlSurface {
                 if ((m_cfg_flags & CONFIG_FLAG_FADER_TOUCH_MODE) &&
                     !GetTouchState(tr)) {
                     m_repos_faders = true;
+                    return true;
                 }
 
-                double val;
+                m_fader_pos[tid - GetBankOffset() ? tid - GetBankOffset() : 8] =
+                    faderVal;
+
+                double val {0};
                 if (m_flipmode) {
                     val =
                         int14ToPan(evt->midi_message[2], evt->midi_message[1]);
@@ -484,10 +494,22 @@ class CSurf_MCULive : public IReaperControlSurface {
 
             m_pan_lasttouch[tid & 7] = timeGetTime();
 
+            if (evt->midi_message[2] & 0x40) {
+                m_encoder_pos[tid & 7] = -(evt->midi_message[2] & 0x3f);
+            }
+            else {
+                m_encoder_pos[tid & 7] = evt->midi_message[2] & 0x3f;
+            }
+
+            if (!m_is_default) {
+                return true;
+            }
+
             if (tid == 8)
                 tid = 0; // adjust for master
             else
                 tid += GetBankOffset();
+
             MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
             if (tr) {
                 double adj = (evt->midi_message[2] & 0x3f) / 31.0;
@@ -548,6 +570,11 @@ class CSurf_MCULive : public IReaperControlSurface {
                 CSurf_OnRewFwd(
                     m_mackie_arrow_states & 128,
                     evt->midi_message[2]);
+
+            if (!m_is_default) {
+                return true;
+            }
+
             return true;
         }
         return false;
@@ -557,6 +584,10 @@ class CSurf_MCULive : public IReaperControlSurface {
     {
         int trackid = evt->midi_message[1] - 0x20;
         m_pan_lasttouch[trackid] = timeGetTime();
+
+        if (!m_is_default) {
+            return true;
+        }
 
         trackid += GetBankOffset();
 
@@ -689,6 +720,11 @@ class CSurf_MCULive : public IReaperControlSurface {
         auto mode = evt->midi_message[1] - 0x28;
         auto modemask = m_modemask;
 
+        if (g_mcu_list.size() == 1) {
+            g_mode_is_global = (1 << 8) - 1;
+            g_split_point_idx = ~0;
+        }
+
         if (modemask & 1 << mode) {
             modemask ^= 1 << mode;
         }
@@ -752,7 +788,8 @@ class CSurf_MCULive : public IReaperControlSurface {
                 }
                 n++;
 
-                if (mcu->m_flipmode && !(m_flipflags & 1 << mcu->m_mode)) {
+                if (mcu->m_flipmode &&
+                    !(m_flipflags & 1 << (mcu->m_mode - 1))) {
                     mcu->OnFlip(evt);
                 }
             }
@@ -838,7 +875,40 @@ class CSurf_MCULive : public IReaperControlSurface {
             evt->midi_message[1] = m_button_remap[evt->midi_message[1]];
         }
 
-        m_button_pressed[evt->midi_message[1]] = evt->midi_message[2];
+        m_button_states[evt->midi_message[1]] = evt->midi_message[2];
+
+        unsigned int evt_code =
+            evt->midi_message[1]; // get_midi_evt_code( evt );
+
+        if (m_buttons_passthrough[evt_code]) { // Pass thru if not otherwise
+                                               // handled
+            if (evt->midi_message[2] >= 0x40) {
+                int a = evt->midi_message[1];
+                MIDI_event_t evt = {
+                    0,
+                    3,
+                    {(unsigned char)(0xbf - (m_mackie_modifiers & 15)),
+                     (unsigned char)a,
+                     0}};
+                kbd_OnMidiEvent(&evt, -1);
+                return true;
+            }
+            else if (!m_press_only_buttons[evt_code]) {
+                int a = evt->midi_message[1];
+                MIDI_event_t evt = {
+                    0,
+                    3,
+                    {(unsigned char)(0xbf - (m_mackie_modifiers & 15)),
+                     (unsigned char)a,
+                     0}};
+                kbd_OnMidiEvent(&evt, -1);
+                return true;
+            }
+        }
+
+        if (!m_is_default) {
+            return true;
+        }
 
         static const int nHandlers = 8;
         static const int nPressOnlyHandlers = 4;
@@ -858,9 +928,6 @@ class CSurf_MCULive : public IReaperControlSurface {
             {0x68, 0x70, &CSurf_MCULive::OnTouch},
         };
 
-        unsigned int evt_code =
-            evt->midi_message[1]; // get_midi_evt_code( evt );
-
 #if 0
       char buf[512];
       sprintf( buf, "   0x%08x %02x %02x %02x %02x 0x%08x 0x%08x %s", evt_code,
@@ -873,7 +940,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         // For these events we only want to track button press
         if (m_press_only_buttons[evt_code] && evt->midi_message[2] >= 0x40) {
             // Check for double click
-            DWORD now = timeGetTime();
+            double now = time_precise(); // timeGetTime();
             bool double_click =
                 (int)evt_code == m_button_last &&
                 now - m_button_last_time < DOUBLE_CLICK_INTERVAL;
@@ -905,18 +972,6 @@ class CSurf_MCULive : public IReaperControlSurface {
                 evt_code <= handlers[i].evt_max)
                 if ((this->*handlers[i].func)(evt))
                     return true;
-
-        // Pass thru if not otherwise handled
-        if (evt->midi_message[2] >= 0x40) {
-            int a = evt->midi_message[1];
-            MIDI_event_t evt = {
-                0,
-                3,
-                {(unsigned char)(0xbf - (m_mackie_modifiers & 15)),
-                 (unsigned char)a,
-                 0}};
-            kbd_OnMidiEvent(&evt, -1);
-        }
 
         return true;
     }
@@ -975,6 +1030,8 @@ class CSurf_MCULive : public IReaperControlSurface {
         m_is_split = 0;
 
         g_mcu_list.push_back(this);
+        g_mode_is_global = (1 << 1) - 1; // mask for global modes
+        g_split_point_idx = (int)g_mcu_list.size() - 1;
 
         // init locals
         for (int x = 0; x < sizeof(m_mcu_meterpos) / sizeof(m_mcu_meterpos[0]);
@@ -988,11 +1045,14 @@ class CSurf_MCULive : public IReaperControlSurface {
 
         memset(m_button_map, 0, sizeof(m_button_map));
         memset(m_button_remap, 0, sizeof(m_button_remap));
-        memset(m_passthru_buttons, 0, sizeof(m_passthru_buttons));
+        memset(m_buttons_passthrough, 1, sizeof(m_buttons_passthrough));
         memset(m_press_only_buttons, 1, sizeof(m_press_only_buttons));
-        memset(m_button_pressed, 0, sizeof(m_button_pressed));
+        memset(m_button_states, 0, sizeof(m_button_states));
 
         // m_button_remap[0x32] = 0x29; // flip to sends
+        for (int i = 0; i <= 0x2d; i++) {
+            m_buttons_passthrough[i] = 0;
+        }
 
         // create midi hardware access
         m_midiin = m_midi_in_dev >= 0 ? CreateMIDIInput(m_midi_in_dev) : NULL;
@@ -1014,7 +1074,7 @@ class CSurf_MCULive : public IReaperControlSurface {
             m_midiin->start();
 
         m_repos_faders = false;
-        m_schedule = NULL;
+        // m_schedule = NULL;
     }
 
     ~CSurf_MCULive()
@@ -1055,11 +1115,11 @@ class CSurf_MCULive : public IReaperControlSurface {
         }
         DELETE_ASYNC(m_midiout);
         DELETE_ASYNC(m_midiin);
-        while (m_schedule != NULL) {
-            ScheduledAction* temp = m_schedule;
-            m_schedule = temp->next;
-            delete temp;
-        }
+        // while (m_schedule != NULL) {
+        //     ScheduledAction* temp = m_schedule;
+        //     m_schedule = temp->next;
+        //     delete temp;
+        // }
     }
 
     const char* GetTypeString()
@@ -1099,22 +1159,26 @@ class CSurf_MCULive : public IReaperControlSurface {
         m_midiin = 0;
     }
 
-    void RunOutput(DWORD now);
+    void RunOutput(double now);
 
     void Run()
     {
-        DWORD now = timeGetTime();
+        auto now = time_precise(); // timeGetTime();
+        auto x = now - m_frameupd_lastrun;
+        auto y = 1. / std::max((*g_config_csurf_rate), 1);
 
-        if ((int)(now - m_frameupd_lastrun) >=
-            (1000 / std::max((*g_config_csurf_rate), 1))) {
+        if (x >= y) {
             m_frameupd_lastrun = now;
-
-            while (m_schedule && (now - m_schedule->time) < 0x10000000) {
-                ScheduledAction* action = m_schedule;
-                m_schedule = m_schedule->next;
-                (this->*(action->func))();
-                delete action;
+            if (!m_is_default) {
+                return;
             }
+
+            // while (m_schedule && (now - m_schedule->time) < 10) {
+            //     ScheduledAction* action = m_schedule;
+            //     m_schedule = m_schedule->next;
+            //     (this->*(action->func))();
+            //     delete action;
+            // }
 
             RunOutput(now);
         }
@@ -1128,8 +1192,8 @@ class CSurf_MCULive : public IReaperControlSurface {
                 OnMIDIEvent(evts);
 
             if (m_mackie_arrow_states) {
-                DWORD now = timeGetTime();
-                if ((now - m_buttonstate_lastrun) >= 100) {
+                double now = time_precise(); // timeGetTime();
+                if ((now - m_buttonstate_lastrun) >= 0.1) {
                     m_buttonstate_lastrun = now;
 
                     if (m_mackie_arrow_states) {
@@ -1231,6 +1295,9 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void SetSurfaceVolume(MediaTrack* trackid, double volume)
     {
+        if (!m_is_default) {
+            return;
+        }
         auto hasMcuMaster {false};
         auto mcuMaster = GetOutputTrack();
         if (mcuMaster != GetMasterTrack(0)) {
@@ -1308,6 +1375,9 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void SetSurfacePan(MediaTrack* trackid, double pan)
     {
+        if (!m_is_default) {
+            return;
+        }
         if (this->m_mode == 2) {
             auto idx = GetSendIndex(trackid);
             pan = GetTrackSendInfo_Value(trackid, 0, idx, "D_PAN");
@@ -1340,6 +1410,9 @@ class CSurf_MCULive : public IReaperControlSurface {
     }
     void SetSurfaceMute(MediaTrack* trackid, bool mute)
     {
+        if (!m_is_default) {
+            return;
+        }
         if (m_mode == 2) {
             mute = isSendMuted(trackid, GetSendIndex(trackid));
         }
@@ -1355,6 +1428,9 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void SetSurfaceSelected(MediaTrack* trackid, bool selected)
     {
+        if (!m_is_default) {
+            return;
+        }
 
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
@@ -1365,6 +1441,9 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void SetSurfaceSolo(MediaTrack* trackid, bool solo)
     {
+        if (!m_is_default) {
+            return;
+        }
         FIXID(id)
         if (m_midiout && id >= 0 && id < 256 && id < m_size) {
             if (id < 8)
@@ -1467,6 +1546,10 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void OnTrackSelection(MediaTrack* trackid)
     {
+
+        if (!m_is_default) {
+            return;
+        }
         int tid = CSurf_TrackToID(trackid, g_csurf_mcpmode);
         // if no normal MCU's here, then slave it
         int movesize = 8;
@@ -1535,6 +1618,10 @@ class CSurf_MCULive : public IReaperControlSurface {
     // !! rec buttons as page navigatores !!
     bool OnRecArm(MIDI_event_t* evt)
     {
+
+        if (!m_is_default) {
+            return true;
+        }
         int* offset = &g_allmcus_bank_offset;
         if (g_is_split && this->m_is_split) {
             offset = &g_split_bank_offset;
@@ -1657,7 +1744,7 @@ static void parseParms(const char* str, int parms[5])
     }
 }
 
-void CSurf_MCULive::RunOutput(DWORD now)
+void CSurf_MCULive::RunOutput(double now)
 {
     if (!m_midiout)
         return;
@@ -1847,8 +1934,8 @@ void CSurf_MCULive::RunOutput(DWORD now)
         double decay = 0.0;
         if (m_mcu_meter_lastrun) {
             decay = VU_BOTTOM * (double)(now - m_mcu_meter_lastrun) /
-                    (1.4 * 1000.0); // they claim 1.8s for falloff but we'll
-                                    // underestimate
+                    (1.4); // they claim 1.8s for falloff but we'll
+                           // underestimate
         }
         m_mcu_meter_lastrun = now;
         for (x = 0; x < 8; x++) {
@@ -2042,145 +2129,427 @@ reaper_csurf_reg_t csurf_mcuex_reg = {
     configFunc,
 };
 
-const char* defstring_Map =
-    "void\0int,int,int,isRemap\0"
+static const char* defstring_Map =
+    "int\0int,int,int,isRemap\0"
     "device,button,command_id,bool\0"
-    "Maps MCU Live device# button to REAPER command ID. E.g. "
-    "reaper.MCULive_Map(0,0x5b, 40340) maps MCU Rewind to \"Track: Unsolo "
-    "all "
-    "tracks\".\n" //
-    "\n"          //
-    "MCU buttons:\n"
+    "Maps MCU Live device# button# to REAPER command ID. E.g. "
+    "reaper.MCULive_Map(0,0x5b, 40340) maps MCU Rewind to \"Track: Unsolo all "
+    "tracks\". " //
+    "Or remap button to another button. "
+    "By default range 0x00 .. 0x2d is in use. "
+    "Button numbers are second column (prefixed with 0x) e.g. '90 5e' 0x5e for "
+    "'transport : play', roughly."
+    "\n"
+    "mcu documentation: \n"
+    "mcu=>pc: \n"
+    "  the mcu seems to send, when it boots (or is reset) f0 00 00 66 14 01 58 "
+    "59 5a 57 18 61 05 57 18 61 05 f7 \n"
+    "  ex vv vv    :   volume fader move, x=0..7, 8=master, vv vv is int14 \n"
+    "  b0 1x vv    :   pan fader move, x=0..7, vv has 40 set if negative, low "
+    "bits 0-31 are move amount \n"
+    "  b0 3c vv    :   jog wheel move, 01 or 41 \n"
+    "  to the extent the buttons below have leds, you can set them by sending "
+    "these messages, with 7f for on, 1 for blink, 0 for off. \n"
+    "  90 0x vv    :   rec arm push x=0..7 (vv:..) \n"
+    "  90 0x vv    :   solo push x=8..f (vv:..) \n"
+    "  90 1x vv    :   mute push x=0..7 (vv:..) \n"
+    "  90 1x vv    :   selected push x=8..f (vv:..) \n"
+    "  90 2x vv    :   pan knob push, x=0..7 (vv:..) \n"
+    "  90 28 vv    :   assignment track \n"
+    "  90 29 vv    :   assignment send \n"
+    "  90 2a vv    :   assignment pan/surround \n"
+    "  90 2b vv    :   assignment plug-in \n"
+    "  90 2c vv    :   assignment eq \n"
+    "  90 2d vv    :   assignment instrument \n"
+    "  90 2e vv    :   bank down button (vv: 00=release, 7f=push) \n"
+    "  90 2f vv    :   channel down button (vv: ..) \n"
+    "  90 30 vv    :   bank up button (vv:..) \n"
+    "  90 31 vv    :   channel up button (vv:..) \n"
+    "  90 32 vv    :   flip button \n"
+    "  90 33 vv    :   global view button \n"
+    "  90 34 vv    :   name/value display button \n"
+    "  90 35 vv    :   smpte/beats mode switch (vv:..) \n"
+    "  90 36 vv    :   f1 \n"
+    "  90 37 vv    :   f2 \n"
+    "  90 38 vv    :   f3 \n"
+    "  90 39 vv    :   f4 \n"
+    "  90 3a vv    :   f5 \n"
+    "  90 3b vv    :   f6 \n"
+    "  90 3c vv    :   f7 \n"
+    "  90 3d vv    :   f8 \n"
+    "  90 3e vv    :   global view : midi tracks \n"
+    "  90 3f vv    :   global view : inputs \n"
+    "  90 40 vv    :   global view : audio tracks \n"
+    "  90 41 vv    :   global view : audio instrument \n"
+    "  90 42 vv    :   global view : aux \n"
+    "  90 43 vv    :   global view : busses \n"
+    "  90 44 vv    :   global view : outputs \n"
+    "  90 45 vv    :   global view : user \n"
+    "  90 46 vv    :   shift modifier (vv:..) \n"
+    "  90 47 vv    :   option modifier \n"
+    "  90 48 vv    :   control modifier \n"
+    "  90 49 vv    :   alt modifier \n"
+    "  90 4a vv    :   automation read/off \n"
+    "  90 4b vv    :   automation write \n"
+    "  90 4c vv    :   automation trim \n"
+    "  90 4d vv    :   automation touch \n"
+    "  90 4e vv    :   automation latch \n"
+    "  90 4f vv    :   automation group \n"
+    "  90 50 vv    :   utilities save \n"
+    "  90 51 vv    :   utilities undo \n"
+    "  90 52 vv    :   utilities cancel \n"
+    "  90 53 vv    :   utilities enter \n"
+    "  90 54 vv    :   marker \n"
+    "  90 55 vv    :   nudge \n"
+    "  90 56 vv    :   cycle \n"
+    "  90 57 vv    :   drop \n"
+    "  90 58 vv    :   replace \n"
+    "  90 59 vv    :   click \n"
+    "  90 5a vv    :   solo \n"
+    "  90 5b vv    :   transport rewind (vv:..) \n"
+    "  90 5c vv    :   transport ffwd (vv:..) \n"
+    "  90 5d vv    :   transport pause (vv:..) \n"
+    "  90 5e vv    :   transport play (vv:..) \n"
+    "  90 5f vv    :   transport record (vv:..) \n"
+    "  90 60 vv    :   up arrow button  (vv:..) \n"
+    "  90 61 vv    :   down arrow button 1 (vv:..) \n"
+    "  90 62 vv    :   left arrow button 1 (vv:..) \n"
+    "  90 63 vv    :   right arrow button 1 (vv:..) \n"
+    "  90 64 vv    :   zoom button (vv:..) \n"
+    "  90 65 vv    :   scrub button (vv:..) \n"
+    "  90 6x vv    :   fader touch x=8..f \n"
+    "  90 70 vv    :   master fader touch \n"
+    "pc=>mcu: \n"
+    "  f0 00 00 66 14 12 xx <data> f7   : update lcd. xx=offset (0-112), "
+    "string. display is 55 chars wide, second line begins at 56, though. \n"
+    "  f0 00 00 66 14 08 00 f7          : reset mcu \n"
+    "  f0 00 00 66 14 20 0x 03 f7       : put track in vu meter mode, x=track  "
+    " \n"
+    "  90 73 vv : rude solo light (vv: 7f=on, 00=off, 01=blink) \n"
+    "  b0 3x vv : pan display, x=0..7, vv=1..17 (hex) or so \n"
+    "  b0 4x vv : right to left of leds. if 0x40 set in vv, dot below char is "
+    "set (x=0..11) \n"
+    "  d0 yx    : update vu meter, y=track, x=0..d=volume, e=clip on, f=clip "
+    "off \n"
+    "  ex vv vv : set volume fader, x=track index, 8=master \n";
 
-    "0x0x : rec arm push x=0..7 (vv:..)\n "
-    "0x0x : solo push x=8..F (vv:..)\n "
-    "0x1x : mute push x=0..7 (vv:..)\n "
-    "0x1x : selected push x=8..F (vv:..)\n "
-    "0x2x : pan knob push, x=0..7 (vv:..)\n "
-    "0x28 : assignment track \n"
-    "0x29 : assignment send \n"
-    "0x2a : assignment pan/surround \n"
-    "0x2b : assignment plug-in \n"
-    "0x2c : assignment eq \n"
-    "0x2d : assignment instrument \n"
-    "0x2e : bank down button  \n"
-    "0x2f : channel down button \n"
-    "0x30 : bank up button \n"
-    "0x31 : channel up button \n"
-    "0x32 : flip button \n"
-    "0x33 : global view button \n"
-    "0x34 : name/value display button \n"
-    "0x35 : smpte/beats mode switch \n"
-    "0x36 : f1 \n"
-    "0x37 : f2 \n"
-    "0x38 : f3 \n"
-    "0x39 : f4 \n"
-    "0x3a : f5 \n"
-    "0x3b : f6 \n"
-    "0x3c : f7 \n"
-    "0x3d : f8 \n"
-    "0x3e : global view : midi tracks \n"
-    "0x3f : global view : inputs \n"
-    "0x40 : global view : audio tracks \n"
-    "0x41 : global view : audio instrument \n"
-    "0x42 : global view : aux \n"
-    "0x43 : global view : busses \n"
-    "0x44 : global view : outputs \n"
-    "0x45 : global view : user \n"
-    "0x46 : shift modifier \n"
-    "0x47 : option modifier \n"
-    "0x48 : control modifier \n"
-    "0x49 : alt modifier \n"
-    "0x4a : automation read/off \n"
-    "0x4b : automation write \n"
-    "0x4c : automation trim \n"
-    "0x4d : automation touch \n"
-    "0x4e : automation latch \n"
-    "0x4f : automation group \n"
-    "0x50 : utilities save \n"
-    "0x51 : utilities undo \n"
-    "0x52 : utilities cancel \n"
-    "0x53 : utilities enter \n"
-    "0x54 : marker \n"
-    "0x55 : nudge \n"
-    "0x56 : cycle \n"
-    "0x57 : drop \n"
-    "0x58 : replace \n"
-    "0x59 : click \n"
-    "0x5a : solo \n"
-    "0x5b : transport rewind \n"
-    "0x5c : transport ffwd \n"
-    "0x5d : transport pause \n"
-    "0x5e : transport play \n"
-    "0x5f : transport record \n"
-    "0x60 : up arrow button  \n"
-    "0x61 : down arrow button  \n"
-    "0x62 : left arrow button  \n"
-    "0x63 : right arrow button \n"
-    "0x64 : zoom button \n"
-    "0x65 : scrub button \n"
-    "0x6x : fader touch x=8..f \n"
-    "0x70 : master fader touch \n";
-
-void Map(int device, int button, int command_id, bool isRemap)
+int Map(int device, int button, int command_id, bool isRemap)
 {
-    // if (isRemap) {
-    //     g_mcu_list.Get(device)->m_button_remap[button] = command_id;
-    // }
-    // else {
-    //     g_mcu_list.Get(device)->m_button_map[button] = command_id;
-    // }
-    return;
+    if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
+        button >= BUFSIZ) {
+        return -1;
+    }
+    if (isRemap) {
+        g_mcu_list[device]->m_button_remap[button] = command_id;
+    }
+    else {
+        g_mcu_list[device]->m_button_map[button] = command_id;
+    }
+    return button;
 }
 const char* defstring_SetButtonPressOnly =
-    "void\0int,int,bool\0"
+    "int\0int,int,bool\0"
     "device,button,isSet\0"
-    "Button functions as press only by default. Set false for press and "
+    "Buttons function as press only by default. Set false for press and "
     "release function.";
 
-void SetButtonPressOnly(int device, int button, bool isSet)
+int SetButtonPressOnly(int device, int button, bool isSet)
 {
-    // g_mcu_list.Get(device)->m_press_only_buttons[button] = isSet ? 1 : 0;
+    if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
+        button >= BUFSIZ) {
+        return -1;
+    }
+    g_mcu_list[device]->m_press_only_buttons[button] = isSet ? 1 : 0;
+    return button;
+}
+
+const char* defstring_SetButtonPassthrough =
+    "int\0int,int,bool\0"
+    "device,button,isSet\0"
+    "Set button as MIDI passthrough.";
+
+int SetButtonPassthrough(int device, int button, bool isSet)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
+        button >= BUFSIZ) {
+        return -1;
+    }
+    g_mcu_list[device]->m_buttons_passthrough[button] = isSet ? 1 : 0;
+    return button;
+}
+
+const char* defstring_SetDefault =
+    "void\0int,bool\0"
+    "device,isSet\0"
+    "Enables/disables default out-of-the-box operation.";
+
+void SetDefault(int device, bool isSet)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size()) {
+        return;
+    }
+    g_mcu_list[device]->m_is_default = isSet;
     return;
 }
 
-const char* defstring_GetIsButtonPressed =
-    "bool\0int,int\0"
-    "device,button\0"
-    "Returns true if device# button# is currently pressed.";
+const char* defstring_SetOption =
+    "void\0int,int\0"
+    "option,value\0"
+    "1 : surface split point device index \n"
+    "2 : 'mode-is-global' bitmask/flags, first 6 bits";
 
-bool GetIsButtonPressed(int device, int button)
+void SetOption(int option, int value)
 {
-    // return g_mcu_list.Get(device)->m_button_pressed[button] ? true : false;
-    return true;
+    if (option > 2 || option < 1) {
+        return;
+    }
+    if (option == 1) {
+        g_split_point_idx = value < (int)g_mcu_list.size() ? value : -1;
+    }
+    if (option == 2) {
+        g_mode_is_global = value & ((1 << 8) - 1);
+    }
+
+    return;
 }
 
-const char* defstring_GetFaderValue =
+static const char* defstring_GetButtonState =
+    "int\0int,int\0"
+    "device,button\0"
+    "Get current button state.";
+
+static int GetButtonState(int device, int button)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
+        button >= BUFSIZ) {
+        return -1;
+    }
+    return g_mcu_list[device]->m_button_states[button];
+}
+
+static const char* defstring_SetButtonState =
+    "int\0int,int,int\0"
+    "device,button,value\0"
+    "Set button led/mode/state. Value 0 = off,1 = blink, 0x7f = on, usually.";
+
+static int SetButtonState(int device, int button, int value)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
+        button >= BUFSIZ) {
+        return -1;
+    }
+    if (!g_mcu_list[device]->m_midiout)
+        return -1;
+
+    g_mcu_list[device]->m_midiout->Send(0x90, button, value, -1);
+    return value;
+}
+
+static const char* defstring_GetFaderValue =
     "double\0int,int,int\0"
     "device,faderIdx,param\0"
     "Returns zero-indexed fader parameter value. 0 = lastpos, 1 = "
     "lasttouch, 2 "
-    "= any lastmove";
+    "= lastmove (any fader)";
 
-double GetFaderValue(int device, int faderIdx, int param)
+static double GetFaderValue(int device, int faderIdx, int param)
 {
-    // if (!(faderIdx < g_mcu_list.Get(device)->m_size)) {
-    //     return -1;
-    // }
-    // if (param == 0) {
-    //     return g_mcu_list.Get(device)->m_vol_lastpos[faderIdx];
-    // }
-    // if (param == 1) {
-    //     return g_mcu_list.Get(device)->m_fader_lasttouch[faderIdx];
-    // }
-    // if (param == 2) {
-    //     return g_mcu_list.Get(device)->m_fader_lastmove;
-    // }
+    if (device < 0 || device >= (int)g_mcu_list.size() || faderIdx < 0 ||
+        faderIdx >= BUFSIZ) {
+        return -1;
+    }
+    if (param == 0) {
+        return (double)g_mcu_list[device]->m_fader_pos[faderIdx];
+    }
+    if (param == 1) {
+        return g_mcu_list[device]->m_fader_lasttouch[faderIdx];
+    }
+    if (param == 2) {
+        return g_mcu_list[device]->m_fader_lastmove;
+    }
     return -1;
+}
+
+static const char* defstring_GetEncoderValue =
+    "double\0int,int,int\0"
+    "device,encIdx,param\0"
+    "Returns zero-indexed encoder parameter value. 0 = lastpos, 1 = "
+    "lasttouch";
+
+static double GetEncoderValue(int device, int encIdx, int param)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || encIdx < 0 ||
+        encIdx >= BUFSIZ) {
+        return -1;
+    }
+    if (param == 0) {
+        return (double)g_mcu_list[device]->m_encoder_pos[encIdx];
+    }
+    if (param == 1) {
+        return g_mcu_list[device]->m_pan_lasttouch[encIdx];
+    }
+    return -1;
+}
+
+static const char* defstring_SetFaderValue =
+    "int\0int,int,double,int\0"
+    "device,faderIdx,val,type\0"
+    "Set fader to value 0 ... 1.0. Type 0 = linear, 1 = track "
+    "volume, 2 = pan. Returns scaled value.";
+
+static int SetFaderValue(int device, int faderIdx, double val, int type)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || faderIdx < 0 ||
+        faderIdx >= BUFSIZ || val < 0 || val > 1) {
+        return -1;
+    }
+    if (!g_mcu_list[device]->m_midiout)
+        return -1;
+    int newVal {-1};
+    if (type == 0) {
+        newVal = (int)val * 16383;
+    }
+    if (type == 1) {
+        newVal = volToInt14(val);
+    }
+    if (type == 2) {
+        newVal = panToInt14((val - 0.5) * 2);
+    }
+    if (newVal == -1) {
+        return -1;
+    }
+
+    g_mcu_list[device]->m_midiout->Send(
+        0xe0 + (faderIdx & 0xf),
+        newVal & 0x7f,
+        (newVal >> 7) & 0x7f,
+        -1);
+    return newVal;
+}
+
+static const char* defstring_SetEncoderValue =
+    "int\0int,int,double,int\0"
+    "device,encIdx,val,type\0"
+    "Set encoder to value 0 ... 1.0. Type 0 = linear, 1 = track "
+    "volume, 2 = pan. Returns scaled value.";
+
+static int SetEncoderValue(int device, int encIdx, double val, int type)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || encIdx < 0 ||
+        encIdx >= BUFSIZ || val < 0 || val > 1) {
+        return -1;
+    }
+    if (!g_mcu_list[device]->m_midiout)
+        return -1;
+    int newVal {-1};
+    if (type == 0) {
+        newVal = (unsigned char)(val * 127);
+    }
+    if (type == 1) {
+        newVal = volToChar(val);
+    }
+    if (type == 2) {
+        newVal = panToChar((val - 0.5) * 2);
+    }
+    if (newVal == -1) {
+        return -1;
+    }
+
+    if (encIdx < 8)
+        g_mcu_list[device]->m_midiout->Send(
+            0xb0,
+            0x30 + (encIdx & 0xf),
+            1 + ((newVal * 11) >> 7),
+            -1);
+    return newVal;
+}
+
+static const char* defstring_SetMeterValue =
+    "int\0int,int,double,int\0"
+    "device,meterIdx,val,type\0"
+    "Set meter value 0 ... 1.0. Type 0 = linear, 1 = track "
+    "volume (with decay).";
+
+static int SetMeterValue(int device, int meterIdx, double val, int type)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size() || meterIdx < 0 ||
+        meterIdx >= BUFSIZ || val < 0 || val > 1) {
+        return -1;
+    }
+    if (!g_mcu_list[device]->m_midiout)
+        return -1;
+    // double pp =
+    //     VAL2DB((Track_GetPeakInfo(t, 0) + Track_GetPeakInfo(t, 1)) * 0.5);
+
+    int v {0};
+    auto pp = val;
+    auto now = time_precise();
+    g_mcu_list[device]->m_mcu_meter_lastrun = now;
+    if (type == 1) {
+        auto decay = 0.0;
+        pp = VAL2DB(val);
+        if (g_mcu_list[device]->m_mcu_meter_lastrun) {
+            decay = VU_BOTTOM *
+                    (double)(now - g_mcu_list[device]->m_mcu_meter_lastrun) /
+                    (1.4); // * 1000.0); // they claim 1.8s for falloff but
+                           // we'll underestimate
+        }
+        if (g_mcu_list[device]->m_mcu_meterpos[meterIdx] > -VU_BOTTOM * 2)
+            g_mcu_list[device]->m_mcu_meterpos[meterIdx] -= decay;
+        if (pp < g_mcu_list[device]->m_mcu_meterpos[meterIdx])
+            pp = g_mcu_list[device]->m_mcu_meterpos[meterIdx];
+        g_mcu_list[device]->m_mcu_meterpos[meterIdx] = pp;
+        v = 0xd; // 0xe turns on clip indicator, 0xf turns it off
+        if (pp < 0.0) {
+            if (pp < -VU_BOTTOM)
+                v = 0x0;
+            else
+                v = (int)((pp + VU_BOTTOM) * 13.0 / VU_BOTTOM);
+        }
+    }
+    else {
+        v = (int)(val * 16);
+    }
+
+    g_mcu_list[device]->m_midiout->Send(0xD0, (meterIdx << 4) | v, 0, -1);
+    return v;
+}
+
+static const char* defstring_Reset =
+    "int\0int\0"
+    "device\0"
+    "Reset device. device < 0 resets all and returns number of devices.";
+static int Reset(int device)
+{
+    if (device >= (int)g_mcu_list.size()) {
+        return -1;
+    }
+    if (!g_mcu_list[device]->m_midiout)
+        return -1;
+    if (device < 0) {
+        for (auto&& i : g_mcu_list) {
+            i->MCUReset();
+        }
+        return (int)g_mcu_list.size();
+    }
+    g_mcu_list[device]->MCUReset();
+    return device;
 }
 
 void RegisterAPI()
 {
+    plugin_register("API_MCULive_SetOption", (void*)&SetOption);
+    plugin_register("APIdef_MCULive_SetOption", (void*)defstring_SetOption);
+    plugin_register(
+        "APIvararg_MCULive_SetOption",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetOption>));
+
+    plugin_register("API_MCULive_Reset", (void*)&Reset);
+    plugin_register("APIdef_MCULive_Reset", (void*)defstring_Reset);
+    plugin_register(
+        "APIvararg_MCULive_Reset",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&Reset>));
+
     plugin_register("API_MCULive_Map", (void*)&Map);
     plugin_register("APIdef_MCULive_Map", (void*)defstring_Map);
     plugin_register(
@@ -2197,15 +2566,21 @@ void RegisterAPI()
         "APIvararg_MCULive_SetButtonPressOnly",
         reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonPressOnly>));
 
+    plugin_register("API_MCULive_SetButtonState", (void*)&SetButtonState);
     plugin_register(
-        "API_MCULive_GetIsButtonPressed",
-        (void*)&GetIsButtonPressed);
+        "APIdef_MCULive_SetButtonState",
+        (void*)defstring_SetButtonState);
     plugin_register(
-        "APIdef_MCULive_GetIsButtonPressed",
-        (void*)defstring_GetIsButtonPressed);
+        "APIvararg_MCULive_SetButtonState",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonState>));
+
+    plugin_register("API_MCULive_GetButtonState", (void*)&GetButtonState);
     plugin_register(
-        "APIvararg_MCULive_GetIsButtonPressed",
-        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetIsButtonPressed>));
+        "APIdef_MCULive_GetButtonState",
+        (void*)defstring_GetButtonState);
+    plugin_register(
+        "APIvararg_MCULive_GetButtonState",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetButtonState>));
 
     plugin_register("API_MCULive_GetFaderValue", (void*)&GetFaderValue);
     plugin_register(
@@ -2214,6 +2589,54 @@ void RegisterAPI()
     plugin_register(
         "APIvararg_MCULive_GetFaderValue",
         reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetFaderValue>));
+
+    plugin_register("API_MCULive_GetEncoderValue", (void*)&GetEncoderValue);
+    plugin_register(
+        "APIdef_MCULive_GetEncoderValue",
+        (void*)defstring_GetEncoderValue);
+    plugin_register(
+        "APIvararg_MCULive_GetEncoderValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetEncoderValue>));
+
+    plugin_register("API_MCULive_SetFaderValue", (void*)&SetFaderValue);
+    plugin_register(
+        "APIdef_MCULive_SetFaderValue",
+        (void*)defstring_SetFaderValue);
+    plugin_register(
+        "APIvararg_MCULive_SetFaderValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetFaderValue>));
+
+    plugin_register("API_MCULive_SetEncoderValue", (void*)&SetEncoderValue);
+    plugin_register(
+        "APIdef_MCULive_SetEncoderValue",
+        (void*)defstring_SetEncoderValue);
+    plugin_register(
+        "APIvararg_MCULive_SetEncoderValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetEncoderValue>));
+
+    plugin_register("API_MCULive_SetMeterValue", (void*)&SetMeterValue);
+    plugin_register(
+        "APIdef_MCULive_SetMeterValue",
+        (void*)defstring_SetMeterValue);
+    plugin_register(
+        "APIvararg_MCULive_SetMeterValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetMeterValue>));
+
+    plugin_register(
+        "API_MCULive_SetButtonPassthrough",
+        (void*)&SetButtonPassthrough);
+    plugin_register(
+        "APIdef_MCULive_SetButtonPassthrough",
+        (void*)defstring_SetButtonPassthrough);
+    plugin_register(
+        "APIvararg_MCULive_SetButtonPassthrough",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonPassthrough>));
+
+    plugin_register("API_MCULive_SetDefault", (void*)&SetDefault);
+    plugin_register("APIdef_MCULive_SetDefault", (void*)defstring_SetDefault);
+    plugin_register(
+        "APIvararg_MCULive_SetDefault",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetDefault>));
     return;
 }
 
