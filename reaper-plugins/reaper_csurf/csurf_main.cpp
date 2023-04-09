@@ -5,7 +5,7 @@
 */
 
 #define REAPERAPI_IMPLEMENT
-#include <reaper_plugin_functions.h>
+#include "reaper_plugin_functions.h"
 
 #define LOCALIZE_IMPORT_PREFIX "csurf_"
 
