@@ -17,7 +17,7 @@
 
 // #include "../../WDL/ptrlist.h"
 
-#define timeGetTime() GetTickCount()
+#define timeGetTime() GetTickCount64()
 
 // #ifdef SPACELAB
 // #define SPLASH_MESSAGE "Spacelab Recording Studio"
@@ -458,8 +458,9 @@ class CSurf_MCULive : public IReaperControlSurface {
             0x5a,
         };
         onResetMsg[4] = m_is_mcuex ? 0x15 : 0x14;
-        if (evt->midi_message[0] == 0xf0 && evt->size >= sizeof(onResetMsg) &&
-            !memcmp(evt->midi_message, onResetMsg, sizeof(onResetMsg))) {
+        if (evt->midi_message[0] == 0xf0 && evt->size >= sizeof(onResetMsg)) // &&
+        //    !memcmp(evt->midi_message, onResetMsg, sizeof(onResetMsg))) 
+        {
             // on reset
             MCUReset();
             TrackList_UpdateAllExternalSurfaces();
@@ -617,7 +618,7 @@ class CSurf_MCULive : public IReaperControlSurface {
     bool OnAutoMode(MIDI_event_t* evt)
     {
 #if 0
-	  UpdateMackieDisplay( 0, "ok", 2 );
+      UpdateMackieDisplay( 0, "ok", 2 );
 #endif
 
         int mode = -1;
@@ -1067,7 +1068,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         else {
             return false;
         };
-        m_flipmode = !m_flipmode;
+        m_flipmode = ~m_flipmode;
         if (m_midiout)
             m_midiout->Send(0x90, 0x32, m_flipmode ? 1 : 0, -1);
         CSurf_ResetAllCachedVolPanStates();
@@ -1244,12 +1245,12 @@ class CSurf_MCULive : public IReaperControlSurface {
             evt->midi_message[1]; // get_midi_evt_code( evt );
 
 #if 0
-	  char buf[512];
-	  sprintf( buf, "   0x%08x %02x %02x %02x %02x 0x%08x 0x%08x %s", evt_code,
-	      evt->midi_message[0], evt->midi_message[1], evt->midi_message[2], evt->midi_message[3],
-	      handlers[0].evt_min, handlers[0].evt_max, 
-	      handlers[0].evt_min <= evt_code && evt_code <= handlers[0].evt_max ? "yes" : "no" );
-	  UpdateMackieDisplay( 0, buf, 56 );
+      char buf[512];
+      sprintf( buf, "   0x%08x %02x %02x %02x %02x 0x%08x 0x%08x %s", evt_code,
+          evt->midi_message[0], evt->midi_message[1], evt->midi_message[2], evt->midi_message[3],
+          handlers[0].evt_min, handlers[0].evt_max, 
+          handlers[0].evt_min <= evt_code && evt_code <= handlers[0].evt_max ? "yes" : "no" );
+      UpdateMackieDisplay( 0, buf, 56 );
 #endif
 
         // For these events we only want to track button press
@@ -1894,7 +1895,7 @@ class CSurf_MCULive : public IReaperControlSurface {
             return false;
 
         FIXID(id)
-        if (!m_flipmode != !isPan) {
+        if (~m_flipmode != ~isPan) {
             if (id >= 0 && id < 8) {
                 if (m_pan_lasttouch[id] == 1 ||
                     (timeGetTime() - m_pan_lasttouch[id]) <

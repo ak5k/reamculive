@@ -5,7 +5,7 @@ include(CheckCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckIncludeFileCXX)
 include(CheckLinkerFlag)
-include(FindGit)
+    include(FindGit)
 include(FindThreads)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
