@@ -2683,12 +2683,15 @@ static const char* defstring_GetDevice =
     "int\0int,int\0"
     "device,type\0"
     "Get MIDI input or output dev ID. type 0 is input dev, type 1 is output "
-    "dev. device < 0 returns number of devices.";
+    "dev. device < 0 returns number of MCULive devices.";
 
 static int GetDevice(int device, int type)
 {
     if (device >= (int)g_mcu_list.size() || type < 0 || type >= 1) {
         return -1;
+    }
+    if (device < 0) {
+        return (int)g_mcu_list.size();
     }
     if (type == 0) {
         return g_mcu_list[device]->m_midi_in_dev;
