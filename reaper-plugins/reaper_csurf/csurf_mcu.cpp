@@ -2629,7 +2629,7 @@ static int GetMIDIMessage(
 }
 
 static const char* defstring_SendMIDIMessage =
-    "int\0int,int,int,const char*,int msgInOptional_sz\0"
+    "int\0int,int,int,int,const char*,int msgInOptional_sz\0"
     "device,status,data1,data2,msgInOptional,msgInOptional_sz\0"
     "Sends MIDI message to device. If string is provided, individual bytes are "
     "not sent. Returns number of sent bytes.";

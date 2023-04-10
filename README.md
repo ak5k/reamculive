@@ -21,3 +21,23 @@
         * V-Pots as send pans.
     * Show/hide tracks from REAPER Mixer Control Panel (MCP).
     * If track with name containing words 'mcu' and 'live' is found, Master fader gets attached to it.
+
+```
+MCULive_GetButtonState   
+MCULive_GetDevice        
+MCULive_GetEncoderValue  
+MCULive_GetFaderValue    
+MCULive_GetMIDIMessage   
+MCULive_Map    	         
+MCULive_Reset    	       
+MCULive_SendMIDIMessage  
+MCULive_SetButtonPassthrough    	
+MCULive_SetButtonPressOnly    	
+MCULive_SetButtonState    	
+MCULive_SetDefault    	
+MCULive_SetDisplay    	
+MCULive_SetEncoderValue    	
+MCULive_SetFaderValue    	
+MCULive_SetMeterValue    	
+MCULive_SetOption    	
+```
