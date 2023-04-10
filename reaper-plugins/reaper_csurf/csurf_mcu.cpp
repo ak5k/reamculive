@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <mutex>
+#include <queue>
+#include <string>
 #include <vector>
 
 #include "reaper_plugin_functions.h"
@@ -215,6 +217,8 @@ class CSurf_MCULive : public IReaperControlSurface {
     int m_button_states[BUFSIZ] {};
     int m_button_remap[BUFSIZ] {};
 
+    std::queue<MIDI_event_t> midiBuffer {};
+
     int m_page {};
     int m_mode {};            // mode assignment
     int m_modemask {};        // mode assignment mask
@@ -396,7 +400,7 @@ class CSurf_MCULive : public IReaperControlSurface {
     {
         if ((evt->midi_message[0] & 0xf0) == 0xe0) // volume fader move
         {
-            m_fader_lastmove = timeGetTime();
+            m_fader_lastmove = time_precise();
 
             int tid = evt->midi_message[0] & 0xf;
 
@@ -492,7 +496,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         {
             int tid = evt->midi_message[1] - 0x10;
 
-            m_pan_lasttouch[tid & 7] = timeGetTime();
+            m_pan_lasttouch[tid & 7] = time_precise();
 
             if (evt->midi_message[2] & 0x40) {
                 m_encoder_pos[tid & 7] = -(evt->midi_message[2] & 0x3f);
@@ -583,7 +587,7 @@ class CSurf_MCULive : public IReaperControlSurface {
     bool OnRotaryEncoderPush(MIDI_event_t* evt)
     {
         int trackid = evt->midi_message[1] - 0x20;
-        m_pan_lasttouch[trackid] = timeGetTime();
+        m_pan_lasttouch[trackid] = time_precise();
 
         if (!m_is_default) {
             return true;
@@ -1163,6 +1167,8 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void Run()
     {
+        static int counter {-1};
+
         auto now = time_precise(); // timeGetTime();
         auto x = now - m_frameupd_lastrun;
         auto y = 1. / std::max((*g_config_csurf_rate), 1);
@@ -1173,23 +1179,23 @@ class CSurf_MCULive : public IReaperControlSurface {
                 return;
             }
 
-            // while (m_schedule && (now - m_schedule->time) < 10) {
-            //     ScheduledAction* action = m_schedule;
-            //     m_schedule = m_schedule->next;
-            //     (this->*(action->func))();
-            //     delete action;
-            // }
-
             RunOutput(now);
         }
 
         if (m_midiin) {
-            m_midiin->SwapBufs(timeGetTime());
+            counter++;
+            if (counter > 2) {
+                counter = 0;
+                midiBuffer = std::queue<MIDI_event_t>();
+            }
+            m_midiin->SwapBufsPrecise(0, time_precise());
             int l = 0;
             MIDI_eventlist* list = m_midiin->GetReadBuf();
             MIDI_event_t* evts;
-            while ((evts = list->EnumItems(&l)))
+            while ((evts = list->EnumItems(&l))) {
+                midiBuffer.push(*evts);
                 OnMIDIEvent(evts);
+            }
 
             if (m_mackie_arrow_states) {
                 double now = time_precise(); // timeGetTime();
@@ -1491,6 +1497,9 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void SetTrackTitle(MediaTrack* trackid, const char* title)
     {
+        if (!m_is_default) {
+            return;
+        }
         FIXID(id)
         if (m_midiout && id >= 0 && id < 8) {
             char buf[32];
@@ -1515,8 +1524,8 @@ class CSurf_MCULive : public IReaperControlSurface {
         if (~m_flipmode != ~isPan) {
             if (id >= 0 && id < 8) {
                 if (m_pan_lasttouch[id] == 1 ||
-                    (timeGetTime() - m_pan_lasttouch[id]) <
-                        3000) // fake touch, go for 3s after last movement
+                    (time_precise() - m_pan_lasttouch[id]) <
+                        3) // fake touch, go for 3s after last movement
                 {
                     return true;
                 }
@@ -1527,7 +1536,7 @@ class CSurf_MCULive : public IReaperControlSurface {
             if (!(m_cfg_flags & CONFIG_FLAG_FADER_TOUCH_MODE) &&
                 !m_fader_touchstate[id] && m_fader_lasttouch[id] &&
                 m_fader_lasttouch[id] != 0xffffffff) {
-                if ((timeGetTime() - m_fader_lasttouch[id]) < 3000)
+                if ((time_precise() - m_fader_lasttouch[id]) < 3)
                     return true;
                 return false;
             }
@@ -2292,6 +2301,20 @@ void SetDefault(int device, bool isSet)
     return;
 }
 
+const char* defstring_SetDisplay =
+    "void\0int,int,const char*,int\0"
+    "device,pos,message,pad\0"
+    "Write to display. 112 characters, 56 per row.";
+
+void SetDisplay(int device, int pos, const char* message, int pad)
+{
+    if (device < 0 || device >= (int)g_mcu_list.size()) {
+        return;
+    }
+    g_mcu_list[device]->UpdateMackieDisplay(pos, message, pad);
+    return;
+}
+
 const char* defstring_SetOption =
     "void\0int,int\0"
     "option,value\0"
@@ -2524,8 +2547,6 @@ static int Reset(int device)
     if (device >= (int)g_mcu_list.size()) {
         return -1;
     }
-    if (!g_mcu_list[device]->m_midiout)
-        return -1;
     if (device < 0) {
         for (auto&& i : g_mcu_list) {
             i->MCUReset();
@@ -2536,8 +2557,80 @@ static int Reset(int device)
     return device;
 }
 
+static const char* defstring_GetDevice =
+    "int\0int,int\0"
+    "device,type\0"
+    "Get MIDI input or output dev ID. type 0 is input dev, type 1 is output "
+    "dev. device < 0 returns number of devices.";
+
+static int GetDevice(int device, int type)
+{
+    if (device >= (int)g_mcu_list.size() || type < 0 || type >= 1) {
+        return -1;
+    }
+    if (type == 0) {
+        return g_mcu_list[device]->m_midi_in_dev;
+    }
+    if (type == 1) {
+        return g_mcu_list[device]->m_midi_out_dev;
+    }
+    return -1;
+}
+
+static const char* defstring_GetMIDIBuffer =
+    "int\0int,int*,int*,int*,int*\0"
+    "device,statusOut,data1Out,data2Out,frame_offsetOut\0"
+    "Get MIDI input buffer from last 3 frames or so. "
+    "Returns first message (status, data1, data2 and frame_offset) in queue "
+    "and retval = remaining queue size. E.g. continuously read all messages "
+    "with 'while (retval > 0) do retval, ... = r.MCULive_GetMIDIBuffer(dev#)' "
+    "per deferred cycle. Frame offset resolution is 1/1024000 seconds, not "
+    "audio samples.";
+static int GetMIDIBuffer(
+    int device,
+    int* statusOut,
+    int* data1Out,
+    int* data2Out,
+    int* frame_offsetOut)
+{
+    if (device >= (int)g_mcu_list.size() || device < 0) {
+        return -1;
+    }
+    if (g_mcu_list[device]->midiBuffer.empty()) {
+        return 0;
+    }
+
+    *statusOut = g_mcu_list[device]->midiBuffer.front().midi_message[0];
+    *data1Out = g_mcu_list[device]->midiBuffer.front().midi_message[1];
+    *data2Out = g_mcu_list[device]->midiBuffer.front().midi_message[2];
+    *frame_offsetOut = g_mcu_list[device]->midiBuffer.front().frame_offset;
+    g_mcu_list[device]->midiBuffer.pop();
+
+    return (int)g_mcu_list[device]->midiBuffer.size();
+}
+
 void RegisterAPI()
 {
+    plugin_register("API_MCULive_GetMIDIBuffer", (void*)&GetMIDIBuffer);
+    plugin_register(
+        "APIdef_MCULive_GetMIDIBuffer",
+        (void*)defstring_GetMIDIBuffer);
+    plugin_register(
+        "APIvararg_MCULive_GetMIDIBuffer",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetMIDIBuffer>));
+
+    plugin_register("API_MCULive_GetDevice", (void*)&GetDevice);
+    plugin_register("APIdef_MCULive_GetDevice", (void*)defstring_GetDevice);
+    plugin_register(
+        "APIvararg_MCULive_GetDevice",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetDevice>));
+
+    plugin_register("API_MCULive_SetDisplay", (void*)&SetDisplay);
+    plugin_register("APIdef_MCULive_SetDisplay", (void*)defstring_SetDisplay);
+    plugin_register(
+        "APIvararg_MCULive_SetDisplay",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetDisplay>));
+
     plugin_register("API_MCULive_SetOption", (void*)&SetOption);
     plugin_register("APIdef_MCULive_SetOption", (void*)defstring_SetOption);
     plugin_register(
