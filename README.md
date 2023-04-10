@@ -1,5 +1,5 @@
 # ReaMCULive
-## REAPER Mackie Control Universal control surface extension for live use.
+## REAPER Mackie Control Universal control surface extension.
 * Works with any MCU compatible controller.
 * Supports multiple MCU units and extenders.
 * ReaScript API to interact with device(s).
