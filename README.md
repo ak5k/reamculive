@@ -23,7 +23,7 @@
     * If track with name containing words 'mcu' and 'live' is found, Master fader gets attached to it.
 
 ```
-MCULive_GetButtonState   
+MCULive_GetButtonValue
 MCULive_GetDevice        
 MCULive_GetEncoderValue  
 MCULive_GetFaderValue    
@@ -33,7 +33,7 @@ MCULive_Reset
 MCULive_SendMIDIMessage  
 MCULive_SetButtonPassthrough    	
 MCULive_SetButtonPressOnly    	
-MCULive_SetButtonState    	
+MCULive_SetButtonValue   	
 MCULive_SetDefault    	
 MCULive_SetDisplay    	
 MCULive_SetEncoderValue    	

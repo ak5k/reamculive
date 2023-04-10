@@ -2336,12 +2336,12 @@ void SetOption(int option, int value)
     return;
 }
 
-static const char* defstring_GetButtonState =
+static const char* defstring_GetButtonValue =
     "int\0int,int\0"
     "device,button\0"
     "Get current button state.";
 
-static int GetButtonState(int device, int button)
+static int GetButtonValue(int device, int button)
 {
     if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
         button >= BUFSIZ) {
@@ -2350,12 +2350,12 @@ static int GetButtonState(int device, int button)
     return g_mcu_list[device]->m_button_states[button];
 }
 
-static const char* defstring_SetButtonState =
+static const char* defstring_SetButtonValue =
     "int\0int,int,int\0"
     "device,button,value\0"
     "Set button led/mode/state. Value 0 = off,1 = blink, 0x7f = on, usually.";
 
-static int SetButtonState(int device, int button, int value)
+static int SetButtonValue(int device, int button, int value)
 {
     if (device < 0 || device >= (int)g_mcu_list.size() || button < 0 ||
         button >= BUFSIZ) {
@@ -2721,21 +2721,21 @@ void RegisterAPI()
         "APIvararg_MCULive_SetButtonPressOnly",
         reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonPressOnly>));
 
-    plugin_register("API_MCULive_SetButtonState", (void*)&SetButtonState);
+    plugin_register("API_MCULive_SetButtonValue", (void*)&SetButtonValue);
     plugin_register(
-        "APIdef_MCULive_SetButtonState",
-        (void*)defstring_SetButtonState);
+        "APIdef_MCULive_SetButtonValue",
+        (void*)defstring_SetButtonValue);
     plugin_register(
-        "APIvararg_MCULive_SetButtonState",
-        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonState>));
+        "APIvararg_MCULive_SetButtonValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SetButtonValue>));
 
-    plugin_register("API_MCULive_GetButtonState", (void*)&GetButtonState);
+    plugin_register("API_MCULive_GetButtonValue", (void*)&GetButtonValue);
     plugin_register(
-        "APIdef_MCULive_GetButtonState",
-        (void*)defstring_GetButtonState);
+        "APIdef_MCULive_GetButtonValue",
+        (void*)defstring_GetButtonValue);
     plugin_register(
-        "APIvararg_MCULive_GetButtonState",
-        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetButtonState>));
+        "APIvararg_MCULive_GetButtonValue",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetButtonValue>));
 
     plugin_register("API_MCULive_GetFaderValue", (void*)&GetFaderValue);
     plugin_register(
