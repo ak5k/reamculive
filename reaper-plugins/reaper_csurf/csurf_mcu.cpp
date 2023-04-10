@@ -2577,27 +2577,46 @@ static int GetDevice(int device, int type)
     return -1;
 }
 
-static const char* defstring_GetMIDIBuffer =
-    "int\0int,int*,int*,int*,int*\0"
-    "device,statusOut,data1Out,data2Out,frame_offsetOut\0"
-    "Get MIDI input buffer from last 3 frames or so. "
+static const char* defstring_GetMIDIMessage =
+    "int\0int,int*,int*,int*,int*,char*,int\0"
+    "device,statusOut,data1Out,data2Out,frame_offsetOut,msgOutOptional,"
+    "msgOutOptional_sz\0"
+    "Gets MIDI message from input buffer/queue. Buffer/queue size max is 3 "
+    "defer/run cycles."
     "Returns first message (status, data1, data2 and frame_offset) in queue "
-    "and retval = remaining queue size. E.g. continuously read all messages "
-    "with 'while (retval > 0) do retval, ... = r.MCULive_GetMIDIBuffer(dev#)' "
-    "per deferred cycle. Frame offset resolution is 1/1024000 seconds, not "
-    "audio samples.";
-static int GetMIDIBuffer(
+    "and retval = remaining queue size. "
+    "Returned message is cleared from queue. "
+    "E.g. continuously read all messages with 'while (retval > 0) do retval, "
+    "etc = r.MCULive_GetMIDIMessage(dev#) end' per deferred cycle. "
+    "Frame offset resolution is 1/1024000 seconds, not audio samples. "
+    "Long messages are returned as optional strings of byte characters. "
+    "Read also non-MCU devices by creating MCU device with their input. ";
+static int GetMIDIMessage(
     int device,
     int* statusOut,
     int* data1Out,
     int* data2Out,
-    int* frame_offsetOut)
+    int* frame_offsetOut,
+    char* msgOutOptional,
+    int msgOutOptional_sz)
 {
     if (device >= (int)g_mcu_list.size() || device < 0) {
         return -1;
     }
     if (g_mcu_list[device]->midiBuffer.empty()) {
         return 0;
+    }
+
+    int n = g_mcu_list[device]->midiBuffer.front().size;
+    if (n > 3 && n <= msgOutOptional_sz) {
+        while (n > 0) {
+            n--;
+            msgOutOptional[n] =
+                g_mcu_list[device]->midiBuffer.front().midi_message[n];
+        }
+    }
+    else if (n < 3) {
+        return -1;
     }
 
     *statusOut = g_mcu_list[device]->midiBuffer.front().midi_message[0];
@@ -2609,15 +2628,58 @@ static int GetMIDIBuffer(
     return (int)g_mcu_list[device]->midiBuffer.size();
 }
 
+static const char* defstring_SendMIDIMessage =
+    "int\0int,int,int,const char*,int msgInOptional_sz\0"
+    "device,status,data1,data2,msgInOptional,msgInOptional_sz\0"
+    "Sends MIDI message to device. If string is provided, individual bytes are "
+    "not sent. Returns number of sent bytes.";
+static int SendMIDIMessage(
+    int device,
+    int status,
+    int data1,
+    int data2,
+    char* msgInOptional,
+    int msgInOptional_sz)
+{
+    if (device >= (int)g_mcu_list.size()) {
+        return -1;
+    }
+    if (!(g_mcu_list[device]->m_midiout)) {
+        return 0;
+    }
+    auto output = g_mcu_list[device]->m_midi_out_dev;
+    int res = (int)strlen(msgInOptional);
+    if (res) {
+        SendMIDIMessageToHardware(output, msgInOptional, msgInOptional_sz);
+    }
+    else {
+        res = 3;
+        g_mcu_list[device]->m_midiout->Send(
+            (unsigned char)(status & 7),
+            (unsigned char)(data1 & 7),
+            (unsigned char)(data2 & 7),
+            -1);
+    }
+    return res;
+}
+
 void RegisterAPI()
 {
-    plugin_register("API_MCULive_GetMIDIBuffer", (void*)&GetMIDIBuffer);
+    plugin_register("API_MCULive_SendMIDIMessage", (void*)&SendMIDIMessage);
     plugin_register(
-        "APIdef_MCULive_GetMIDIBuffer",
-        (void*)defstring_GetMIDIBuffer);
+        "APIdef_MCULive_SendMIDIMessage",
+        (void*)defstring_SendMIDIMessage);
     plugin_register(
-        "APIvararg_MCULive_GetMIDIBuffer",
-        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetMIDIBuffer>));
+        "APIvararg_MCULive_SendMIDIMessage",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&SendMIDIMessage>));
+
+    plugin_register("API_MCULive_GetMIDIMessage", (void*)&GetMIDIMessage);
+    plugin_register(
+        "APIdef_MCULive_GetMIDIMessage",
+        (void*)defstring_GetMIDIMessage);
+    plugin_register(
+        "APIvararg_MCULive_GetMIDIMessage",
+        reinterpret_cast<void*>(&InvokeReaScriptAPI<&GetMIDIMessage>));
 
     plugin_register("API_MCULive_GetDevice", (void*)&GetDevice);
     plugin_register("APIdef_MCULive_GetDevice", (void*)defstring_GetDevice);
