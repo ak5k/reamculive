@@ -934,8 +934,8 @@ class CSurf_MCULive : public IReaperControlSurface {
             return true;
         }
 
-        static const int nHandlers = 10;
-        static const int nPressOnlyHandlers = 4;
+        static const int nHandlers = 11;
+        static const int nPressOnlyHandlers = 5;
         static const ButtonHandler handlers[nHandlers] = {
             //
             {0x00, 0x07, &CSurf_MCULive::OnRecArm, NULL},
@@ -945,8 +945,9 @@ class CSurf_MCULive : public IReaperControlSurface {
              0x1f,
              &CSurf_MCULive::OnChannelSelectDC,
              &CSurf_MCULive::OnChannelSelect},
+            {0x2e, 0x31, &CSurf_MCULive::OnBankChannel, NULL},
             // Press and release events
-            {0x28, 0x45, &CSurf_MCULive::OnMCULiveButton, NULL},
+            {0x32, 0x45, &CSurf_MCULive::OnMCULiveButton, NULL},
             {0x4a, 0x5f, &CSurf_MCULive::OnMCULiveButton, NULL},
             {0x64, 0x67, &CSurf_MCULive::OnMCULiveButton, NULL},
             {0x46, 0x49, &CSurf_MCULive::OnKeyModifier},
@@ -1076,7 +1077,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         memset(m_button_states, 0, sizeof(m_button_states));
 
         // m_button_remap[0x32] = 0x29; // flip to sends
-        for (int i = 0; i <= 0x2d; i++) {
+        for (int i = 0; i <= 0x32; i++) {
             m_buttons_passthrough[i] = 0;
         }
 
@@ -1575,6 +1576,104 @@ class CSurf_MCULive : public IReaperControlSurface {
         memset(m_pan_lastpos, 0xff, sizeof(m_pan_lastpos));
     }
 
+    bool OnBankChannel(MIDI_event_t* evt)
+    {
+        int* offset = &g_allmcus_bank_offset;
+        if (g_is_split && this->m_is_split) {
+            offset = &g_split_bank_offset;
+        }
+
+        int movesize = 8;
+        int n {0};
+        for (auto mcu : g_mcu_list) {
+            if (mcu) {
+                if (g_is_split && n == g_split_point_idx) {
+                    movesize = 8;
+                }
+                if (mcu->m_offset + 8 > movesize)
+                    movesize = mcu->m_offset + 8;
+            }
+            n++;
+        }
+        int maxfaderpos = 0;
+
+        for (auto item : g_mcu_list) {
+            if (item) {
+                if (item->m_offset + movesize > maxfaderpos)
+                    maxfaderpos = item->m_offset + movesize;
+            }
+        }
+
+        // if (evt->midi_message[1] >= 0x30)
+        //     movesize = 1;
+        // else
+        //     movesize = 8; // maxfaderpos?
+
+        if (evt->midi_message[1] & 1) // increase by X
+        {
+            int msize = CSurf_NumTracks(g_csurf_mcpmode);
+            if (movesize > 1) {
+                if (*offset + maxfaderpos >= msize)
+                    return true;
+            }
+
+            *offset += movesize;
+
+            if (*offset >= msize)
+                *offset = msize - 1;
+        }
+        else {
+            if (*offset == 0) {
+                return true;
+            }
+            *offset -= movesize;
+            if (*offset < 0)
+                *offset = 0;
+        }
+        // update all of the sliders
+
+        auto newPage = *offset / movesize;
+        auto device = newPage / 8;
+        newPage = newPage % 8;
+
+        n = 0;
+        for (auto mcu : g_mcu_list) {
+            if (this->m_is_split != mcu->m_is_split) {
+                continue;
+            }
+            if (mcu && mcu->m_midiout) {
+                if (mcu->m_page != 8) {
+                    // not 0 .. 7
+                    mcu->m_midiout->Send(
+                        0x90,
+                        0x0 + (mcu->m_page & 7),
+                        0,
+                        -1); // 0x7f : 0
+                    mcu->m_page = 8;
+                }
+                if (device == n) {
+                    mcu->m_page = newPage;
+                    mcu->m_midiout->Send(
+                        0x90,
+                        0x0 + (m_page & 7),
+                        0x7f,
+                        -1); // 0x7f : 0
+                }
+            }
+            if (mcu && !mcu->m_is_mcuex && mcu->m_midiout) {
+                mcu->m_midiout->Send(
+                    0xB0,
+                    0x40 + 11,
+                    '0' + (((*offset + 1) / 10) % 10),
+                    -1);
+                mcu->m_midiout
+                    ->Send(0xB0, 0x40 + 10, '0' + ((*offset + 1) % 10), -1);
+            }
+            n++;
+        }
+        TrackList_UpdateAllExternalSurfaces();
+        return true;
+    }
     void OnTrackSelection(MediaTrack* trackid)
     {
 
