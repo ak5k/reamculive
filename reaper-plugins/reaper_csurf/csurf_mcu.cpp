@@ -16,7 +16,7 @@
 
 #include "csurf.h"
 
-#define timeGetTime() GetTickCount64()
+// #define timeGetTime() GetTickCount64()
 
 #define SPLASH_MESSAGE "ak5k MCU Live"
 
