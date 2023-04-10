@@ -2755,7 +2755,7 @@ static int GetMIDIMessage(
 }
 
 static const char* defstring_SendMIDIMessage =
-    "int\0int,int,int,int,const char*,int msgInOptional_sz\0"
+    "int\0int,int,int,int,const char*,int* msgInOptional_sz\0"
     "device,status,data1,data2,msgInOptional,msgInOptional_sz\0"
     "Sends MIDI message to device. If string is provided, individual bytes are "
     "not sent. Returns number of sent bytes.";
@@ -2765,7 +2765,7 @@ static int SendMIDIMessage(
     int data1,
     int data2,
     char* msgInOptional,
-    int msgInOptional_sz)
+    int* msgInOptional_sz)
 {
     if (device >= (int)g_mcu_list.size()) {
         return -1;
@@ -2774,9 +2774,12 @@ static int SendMIDIMessage(
         return 0;
     }
     auto output = g_mcu_list[device]->m_midi_out_dev;
-    int res = (int)strlen(msgInOptional);
-    if (res) {
-        SendMIDIMessageToHardware(output, msgInOptional, msgInOptional_sz);
+    int res = 0;
+    if (msgInOptional) {
+        res = (int)strlen(msgInOptional);
+    }
+    if (res && msgInOptional_sz != NULL) {
+        SendMIDIMessageToHardware(output, msgInOptional, *msgInOptional_sz);
     }
     else {
         res = 3;
