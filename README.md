@@ -1,18 +1,17 @@
 # ReaMCULive
-## REAPER Mackie Control Universal control surface extension.
-* Works with any MCU compatible controller.
-* Supports multiple MCU units and extenders.
+## REAPER programmable control surface API extension. Built-ins for MCU (WIP)
+* Works with any MIDI and MCU compatible controller.
 * ReaScript API to interact with device(s).
-    * Default behavior can be disabled (recommended).
-    * Get and send MIDI messages also to non-MCU devices via API.
-    * Build/customize your own implementation.
-* OOTB modified MCU implementation to better suite live needs.
-    * WIP
+    * Get and send MIDI messages to devices via API.
+    * Build/customize your own perfect control surface implementation.
+    * Default built-in behavior can be disabled (recommended for scripting).
+* OOTB modified MCU implementation to better suite live needs (WIP).
+    * Supports multiple MCU units and extenders.
     * Mostly fixed assignments for solid and safe workflow.
     * Works nicely in studio production too.
     * Works nicely in tandem with ReaSolotus.
         * To get discrete solo/monitoring bus.
-    * 'Console split' modes for sends, EQ, plugins ...
+    * 'Console split' modes for sends (EQ, inst & FXs WIP)
         * With multiple MCUs.
     * Rec arm buttos as fixed bank/page/layer shortcuts.
     * Assignable buttons via ReaScript API.
