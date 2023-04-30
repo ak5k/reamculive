@@ -854,7 +854,6 @@ class CSurf_MCULive : public IReaperControlSurface {
         auto msg = evt->midi_message[1];
         int command {};
         {
-            // std::scoped_lock lock {g_mutex};
             command = m_button_map[msg];
         }
         if (!command) {
@@ -1190,38 +1189,36 @@ class CSurf_MCULive : public IReaperControlSurface {
 
     void Run()
     {
-        static int counter {-1};
-
         auto now = time_precise(); // timeGetTime();
         auto x = now - m_frameupd_lastrun;
         auto y = 1. / std::max((*g_config_csurf_rate), 1);
 
+        if (midiBuffer.size() > BUFSIZ) {
+            midiBuffer.clear();
+        }
+        m_midiin->SwapBufsPrecise(0, now);
+        int l = 0;
+        MIDI_eventlist* list = m_midiin->GetReadBuf();
+        MIDI_event_t* evts;
+        while ((evts = list->EnumItems(&l))) {
+            midiBuffer.push_back(*evts);
+            if (m_is_default) {
+                OnMIDIEvent(evts);
+            }
+        }
+
+        if (!m_is_default) {
+            return;
+        }
+
         if (x >= y) {
             m_frameupd_lastrun = now;
-            if (!m_is_default) {
-                return;
-            }
 
             RunOutput(now);
         }
 
         if (m_midiin) {
-            counter++;
-            if (counter > 0) {
-                counter = 0;
-                midiBuffer.clear();
-            }
-            m_midiin->SwapBufsPrecise(0, time_precise());
-            int l = 0;
-            MIDI_eventlist* list = m_midiin->GetReadBuf();
-            MIDI_event_t* evts;
-            while ((evts = list->EnumItems(&l))) {
-                midiBuffer.push_back(*evts);
-                OnMIDIEvent(evts);
-            }
-
             if (m_mackie_arrow_states) {
-                double now = time_precise(); // timeGetTime();
                 if ((now - m_buttonstate_lastrun) >= 0.1) {
                     m_buttonstate_lastrun = now;
 
@@ -2707,12 +2704,12 @@ static const char* defstring_GetMIDIMessage =
     "device,msgIdx,statusOut,data1Out,data2Out,frame_offsetOut,msgOutOptional,"
     "msgOutOptional_sz\0"
     "Gets MIDI message from input buffer/queue. "
-    "Returns indexed message (status, data1, data2 and frame_offset) from "
-    "queue "
-    "and retval is total size/length of current queue. "
+    "Gets (pops/pulls) indexed message (status, data1, data2 and frame_offset) "
+    "from queue and retval is total size/length left in queue. "
     "E.g. continuously read all indiviual messages with deferred script. "
     "Frame offset resolution is 1/1024000 seconds, not audio samples. "
     "Long messages are returned as optional strings of byte characters. "
+    "msgIdx -1 returns size (length) of buffer. "
     "Read also non-MCU devices by creating MCULive device with their input. ";
 static int GetMIDIMessage(
     int device,
@@ -2735,6 +2732,10 @@ static int GetMIDIMessage(
         return -1;
     }
 
+    if (msgIdx == -1) {
+        return (int)g_mcu_list[device]->midiBuffer.size();
+    }
+
     auto n = g_mcu_list[device]->midiBuffer[msgIdx].size;
     if (n > 3 && n < msgOutOptional_sz) {
         memcpy(
@@ -2751,6 +2752,8 @@ static int GetMIDIMessage(
     *data2Out = g_mcu_list[device]->midiBuffer[msgIdx].midi_message[2];
     *frame_offsetOut = g_mcu_list[device]->midiBuffer[msgIdx].frame_offset;
 
+    g_mcu_list[device]->midiBuffer.erase(
+        g_mcu_list[device]->midiBuffer.begin() + msgIdx);
     return (int)g_mcu_list[device]->midiBuffer.size();
 }
 
