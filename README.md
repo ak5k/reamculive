@@ -3,6 +3,7 @@
 * Works with any MIDI and MCU compatible controller.
 * ReaScript API to interact with device(s).
     * Get and send MIDI messages to devices via API.
+        * See MIDI input monitoring example script.
     * Build/customize your own perfect control surface implementation.
     * Default built-in behavior can be disabled (recommended for scripting).
 * OOTB modified MCU implementation to better suite live needs (WIP).
