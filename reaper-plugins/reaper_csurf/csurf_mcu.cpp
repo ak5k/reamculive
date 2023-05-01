@@ -1193,7 +1193,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         auto x = now - m_frameupd_lastrun;
         auto y = 1. / std::max((*g_config_csurf_rate), 1);
 
-        if (midiBuffer.size() > BUFSIZ) {
+        if (midiBuffer.size() > BUFSIZ * 3) {
             midiBuffer.clear();
         }
         m_midiin->SwapBufsPrecise(0, now);
