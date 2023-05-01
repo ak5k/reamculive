@@ -1,5 +1,5 @@
 # ReaMCULive
-## REAPER programmable control surface API extension. Built-ins for MCU (WIP)
+## REAPER programmable ReaScript API control surface extension. Built-in extras for live MCU usage.(WIP).
 * Works with any MIDI and MCU compatible controller.
 * ReaScript API to interact with device(s).
     * Get and send MIDI messages to devices via API.
