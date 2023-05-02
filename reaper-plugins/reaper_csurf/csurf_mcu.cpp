@@ -1193,20 +1193,6 @@ class CSurf_MCULive : public IReaperControlSurface {
         auto x = now - m_frameupd_lastrun;
         auto y = 1. / std::max((*g_config_csurf_rate), 1);
 
-        if (midiBuffer.size() > BUFSIZ) {
-            midiBuffer.clear();
-        }
-        m_midiin->SwapBufsPrecise(0, now);
-        int l = 0;
-        MIDI_eventlist* list = m_midiin->GetReadBuf();
-        MIDI_event_t* evts;
-        while ((evts = list->EnumItems(&l))) {
-            midiBuffer.push_back(*evts);
-            if (m_is_default) {
-                OnMIDIEvent(evts);
-            }
-        }
-
         if (!m_is_default) {
             return;
         }
@@ -1218,6 +1204,19 @@ class CSurf_MCULive : public IReaperControlSurface {
         }
 
         if (m_midiin) {
+            if (midiBuffer.size() > BUFSIZ) {
+                midiBuffer.clear();
+            }
+            m_midiin->SwapBufsPrecise(0, now);
+            int l = 0;
+            MIDI_eventlist* list = m_midiin->GetReadBuf();
+            MIDI_event_t* evts;
+            while ((evts = list->EnumItems(&l))) {
+                midiBuffer.push_back(*evts);
+                if (m_is_default) {
+                    OnMIDIEvent(evts);
+                }
+            }
             if (m_mackie_arrow_states) {
                 if ((now - m_buttonstate_lastrun) >= 0.1) {
                     m_buttonstate_lastrun = now;
