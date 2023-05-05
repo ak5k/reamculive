@@ -4,6 +4,8 @@
 ** License: LGPL.
 */
 
+#include <string>
+
 #define REAPERAPI_IMPLEMENT
 #include "reaper_plugin_functions.h"
 
@@ -81,6 +83,13 @@ REAPER_PLUGIN_DLL_EXPORT int REAPER_PLUGIN_ENTRYPOINT(
 
     if (errcnt)
         return 0;
+
+    auto ver = std::stod(GetAppVersion());
+
+    if (ver < 6.76) {
+        ShowConsoleMsg("ReaMCULive: REAPER 6.76 or later required.");
+        return 0;
+    }
 
     // Plugin_Register = rec->Register;
 
