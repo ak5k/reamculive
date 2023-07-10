@@ -8,7 +8,7 @@ before_build:
 #   - ruby -E UTF-8 tools/coverage.rb
 
 for:
-  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu2004 ] }
+  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu1804 ] }
     cache:
       - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
     install: |-
@@ -29,7 +29,7 @@ for:
         sudo apt-get install -qq aptitude
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
-        # sudo update-alternatives --set gcc /usr/bin/gcc-7
+        sudo update-alternatives --set gcc /usr/bin/gcc-7
       case $ARCH in
       x86_64)
         install-deps amd64
