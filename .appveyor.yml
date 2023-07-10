@@ -24,7 +24,7 @@ for:
         local native=("$@")
         local target=()
         sudo dpkg --add-architecture $arch
-        sudo apt-get update
+        sudo apt-get update --allow-releaseinfo-change
         sudo apt-get install aptitude
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
