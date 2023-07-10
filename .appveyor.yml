@@ -7,10 +7,63 @@ before_build:
 # test_script:
 #   - ruby -E UTF-8 tools/coverage.rb
 
+# for:
+#   - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu2004 ] }
+#     cache:
+#       - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
+#     install: |-
+#       set -e
+#       sudo sed -i '/arch=/! s/^deb/deb [arch=amd64,i386]/' /etc/apt/sources.list
+#       awk '
+#       $3 !~ /ubuntu\.com/ { next }
+#       $1 == "deb" {
+#         $2 = "[arch=armhf,arm64]";
+#         $3 = "http://ports.ubuntu.com/ubuntu-ports/"
+#       } 1' /etc/apt/sources.list | sudo tee /etc/apt/sources.list.d/ports.list > /dev/null
+#       install-deps() {
+#         local arch="$1"; shift
+#         local native=("$@")
+#         local target=()
+#         sudo dpkg --add-architecture $arch
+#         sudo apt-get update -qq
+#         sudo apt-get install -qq aptitude
+#         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
+#       }
+#         # sudo update-alternatives --set gcc /usr/bin/gcc-7
+#       case $ARCH in
+#       x86_64)
+#         install-deps amd64
+#         # export TOOLCHAIN=~/vcpkg/scripts/buildsystems/vcpkg.cmake
+#         ;;
+#       i686)
+#         install-deps i386 g++-multilib
+#         export TOOLCHAIN_PREFIX=i386-linux-gnu
+#         export TOOLCHAIN=cmake/linux-cross.cmake
+#         ;;
+#       armv7l)
+#         install-deps armhf g++-arm-linux-gnueabihf
+#         export TOOLCHAIN_PREFIX=arm-linux-gnueabihf
+#         export TOOLCHAIN=cmake/linux-cross.cmake
+#         ;;
+#       aarch64)
+#         install-deps arm64 g++-aarch64-linux-gnu
+#         export TOOLCHAIN_PREFIX=aarch64-linux-gnu
+#         export TOOLCHAIN=cmake/linux-cross.cmake
+#         ;;
+#       esac
+#       sudo aptitude install -yR php-cli
+#       TRIPLET=arch-env 
+#       export VCPKG_OVERLAY_TRIPLETS=cmake/vcpkg-triplets
+#     build_script:
+#     - cmake -B build -DCMAKE_BUILD_TYPE=Release
+#       -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
+#     - cmake --build build --target reaper_reamculive
+
+#     artifacts:
+#       - path: build/reaper_*.so
+
 for:
-  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu1804 ] }
-    cache:
-      - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
+  - matrix: { only: [appveyor_build_worker_image: &linux Ubuntu] }
     install: |-
       set -e
       sudo sed -i '/arch=/! s/^deb/deb [arch=amd64,i386]/' /etc/apt/sources.list
@@ -20,47 +73,51 @@ for:
         $2 = "[arch=armhf,arm64]";
         $3 = "http://ports.ubuntu.com/ubuntu-ports/"
       } 1' /etc/apt/sources.list | sudo tee /etc/apt/sources.list.d/ports.list > /dev/null
+
       install-deps() {
         local arch="$1"; shift
         local native=("$@")
-        local target=()
+        # local target=(libboost-dev)
         sudo dpkg --add-architecture $arch
         sudo apt-get update -qq
-        sudo apt-get install -qq aptitude
-        sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
+        sudo apt-get install -qq aptitude > /dev/null
+        # sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch} > /dev/null
+        sudo aptitude install -yR ${native[@]} > /dev/null
       }
-        sudo update-alternatives --set gcc /usr/bin/gcc-7
+
+      sudo update-alternatives --set gcc /usr/bin/gcc-7
       case $ARCH in
       x86_64)
         install-deps amd64
-        export TOOLCHAIN=~/vcpkg/scripts/buildsystems/vcpkg.cmake
         ;;
       i686)
         install-deps i386 g++-multilib
-        export TOOLCHAIN_PREFIX=i386-linux-gnu
-        export TOOLCHAIN=cmake/linux-cross.cmake
+        export TOOLCHAIN=cmake/linux-cross.cmake \
+               TOOLCHAIN_PREFIX=i386-linux-gnu
         ;;
       armv7l)
         install-deps armhf g++-arm-linux-gnueabihf
-        export TOOLCHAIN_PREFIX=arm-linux-gnueabihf
-        export TOOLCHAIN=cmake/linux-cross.cmake
+        export TOOLCHAIN=cmake/linux-cross.cmake \
+               TOOLCHAIN_PREFIX=arm-linux-gnueabihf
         ;;
       aarch64)
         install-deps arm64 g++-aarch64-linux-gnu
-        export TOOLCHAIN_PREFIX=aarch64-linux-gnu
-        export TOOLCHAIN=cmake/linux-cross.cmake
+        export TOOLCHAIN=cmake/linux-cross.cmake \
+               TOOLCHAIN_PREFIX=aarch64-linux-gnu
         ;;
       esac
-      sudo aptitude install -yR php-cli
-      TRIPLET=arch-env 
-      export VCPKG_OVERLAY_TRIPLETS=cmake/vcpkg-triplets
+
     build_script:
-    - cmake -B build -DCMAKE_BUILD_TYPE=Release
-      -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
-    - cmake --build build --target reaper_reamculive
+      - cmake -B build -DCMAKE_BUILD_TYPE=Release
+        -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
+        -DCMAKE_OSX_ARCHITECTURES=$ARCH -DCMAKE_OSX_DEPLOYMENT_TARGET=$DEPLOY_TARGET
+      - cmake --build build --target reaper_reamculive
+      - '[ "$ARCH" != `uname -m` ] || cmake --build build --target reaper_reamculive'
 
     artifacts:
-      - path: build/reaper_*.so
+      - path: build/reaper_reamculive*.so
+
+
 
   - matrix: { only: [ appveyor_build_worker_image: macos-catalina, appveyor_build_worker_image: macos, appveyor_build_worker_image: macos-mojave ] }
     cache:
