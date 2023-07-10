@@ -24,8 +24,8 @@ for:
         local native=("$@")
         local target=()
         sudo dpkg --add-architecture $arch
-        sudo apt-get update --allow-releaseinfo-change
-        sudo apt-get install aptitude
+        sudo apt-get update -qq --allow-releaseinfo-change
+        sudo apt-get install -qq aptitude
         sudo aptitude install -yR ${native[@]} ${target[@]/%/:$arch}
       }
         # sudo update-alternatives --set gcc /usr/bin/gcc-7
