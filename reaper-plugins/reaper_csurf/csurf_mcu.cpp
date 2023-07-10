@@ -901,7 +901,7 @@ class CSurf_MCULive : public IReaperControlSurface {
         m_button_states[evt->midi_message[1]] = evt->midi_message[2];
 
         unsigned int evt_code =
-            evt->midi_message[1]; // get_midi_evt_code( evt );
+            evt->midi_message[1];              // get_midi_evt_code( evt );
 
         if (m_buttons_passthrough[evt_code]) { // Pass thru if not otherwise
                                                // handled
@@ -1970,8 +1970,8 @@ void CSurf_MCULive::RunOutput(double now)
             if (nm >= 100)
                 bla[0] = '0' + (nm / 100) % 10; // bars hund
             if (nm >= 10)
-                bla[1] = '0' + (nm / 10) % 10; // barstens
-            bla[2] = '0' + (nm) % 10;          // bars
+                bla[1] = '0' + (nm / 10) % 10;  // barstens
+            bla[2] = '0' + (nm) % 10;           // bars
 
             int nb = (int)nbeats + 1;
             if (nb >= 10)
@@ -1995,14 +1995,14 @@ void CSurf_MCULive::RunOutput(double now)
             if (ipp >= 360000)
                 bla[0] = '0' + (ipp / 360000) % 10; // hours hundreds
             if (ipp >= 36000)
-                bla[1] = '0' + (ipp / 36000) % 10; // hours tens
+                bla[1] = '0' + (ipp / 36000) % 10;  // hours tens
             if (ipp >= 3600)
-                bla[2] = '0' + (ipp / 3600) % 10; // hours
+                bla[2] = '0' + (ipp / 3600) % 10;   // hours
 
-            bla[3] = '0' + (ipp / 600) % 6; // min tens
-            bla[4] = '0' + (ipp / 60) % 10; // min
-            bla[5] = '0' + (ipp / 10) % 6;  // sec tens
-            bla[6] = '0' + (ipp % 10);      // sec
+            bla[3] = '0' + (ipp / 600) % 6;         // min tens
+            bla[4] = '0' + (ipp / 60) % 10;         // min
+            bla[5] = '0' + (ipp / 10) % 6;          // sec tens
+            bla[6] = '0' + (ipp % 10);              // sec
             bla[7] = '0' + (fr / 100) % 10;
             bla[8] = '0' + (fr / 10) % 10;
             bla[9] = '0' + (fr % 10); // frames
@@ -2256,8 +2256,8 @@ reaper_csurf_reg_t csurf_mcuex_reg = {
 };
 
 static const char* defstring_Map =
-    "int\0int,int,int,isRemap\0"
-    "device,button,command_id,bool\0"
+    "int\0int,int,int,bool\0"
+    "device,button,command_id,isRemap\0"
     "Maps MCU Live device# button# to REAPER command ID. E.g. "
     "reaper.MCULive_Map(0,0x5b, 40340) maps MCU Rewind to \"Track: Unsolo all "
     "tracks\". " //
@@ -2757,7 +2757,7 @@ static int GetMIDIMessage(
 }
 
 static const char* defstring_SendMIDIMessage =
-    "int\0int,int,int,int,const char*,int* msgInOptional_sz\0"
+    "int\0int,int,int,int,const char*,int\0"
     "device,status,data1,data2,msgInOptional,msgInOptional_sz\0"
     "Sends MIDI message to device. If string is provided, individual bytes are "
     "not sent. Returns number of sent bytes.";
@@ -2766,8 +2766,8 @@ static int SendMIDIMessage(
     int status,
     int data1,
     int data2,
-    char* msgInOptional,
-    int* msgInOptional_sz)
+    const char* msgInOptional,
+    int msgInOptional_sz)
 {
     if (device >= (int)g_mcu_list.size()) {
         return -1;
@@ -2781,7 +2781,7 @@ static int SendMIDIMessage(
         res = (int)strlen(msgInOptional);
     }
     if (res && msgInOptional_sz != NULL) {
-        SendMIDIMessageToHardware(output, msgInOptional, *msgInOptional_sz);
+        SendMIDIMessageToHardware(output, msgInOptional, msgInOptional_sz);
     }
     else {
         res = 3;
