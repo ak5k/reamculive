@@ -7,7 +7,7 @@ before_build:
 #   - ruby -E UTF-8 tools/coverage.rb
 
 for:
-  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu2004 ] }
+  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu2204 ] }
     cache:
       - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
     install: |-
