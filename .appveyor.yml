@@ -1,4 +1,3 @@
----
 version: "{build}-{branch}"
 # stack: ruby 2.7
 
@@ -8,9 +7,9 @@ before_build:
 #   - ruby -E UTF-8 tools/coverage.rb
 
 for:
-  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu ] }
-    # cache:
-    #   - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
+  - matrix: { only: [ appveyor_build_worker_image: &linux Ubuntu2004 ] }
+    cache:
+      - build/vcpkg_installed -> vcpkg.json, cmake/vcpkg-triplets/arch-env.cmake
     install: |-
       set -e
       sudo sed -i '/arch=/! s/^deb/deb [arch=amd64,i386]/' /etc/apt/sources.list
@@ -33,7 +32,7 @@ for:
       case $ARCH in
       x86_64)
         install-deps amd64
-        # export TOOLCHAIN=~/vcpkg/scripts/buildsystems/vcpkg.cmake
+        export TOOLCHAIN=~/vcpkg/scripts/buildsystems/vcpkg.cmake
         ;;
       i686)
         install-deps i386 g++-multilib
@@ -51,13 +50,12 @@ for:
         export TOOLCHAIN=cmake/linux-cross.cmake
         ;;
       esac
-      # sudo aptitude install -yR php-cli
-      # TRIPLET=arch-env 
-      # export VCPKG_OVERLAY_TRIPLETS=cmake/vcpkg-triplets
+      sudo aptitude install -yR php-cli
+      TRIPLET=arch-env 
+      export VCPKG_OVERLAY_TRIPLETS=cmake/vcpkg-triplets
     build_script:
     - cmake -B build -DCMAKE_BUILD_TYPE=Release
-      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
-      # -DVCPKG_TARGET_TRIPLET=$TRIPLET 
+      -DVCPKG_TARGET_TRIPLET=$TRIPLET -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN
     - cmake --build build --target reaper_reamculive
 
     artifacts:
@@ -76,7 +74,6 @@ for:
         x86_64) export DEPLOY_TARGET=10.4 XCODE_VERSION=12.3 ;;
         *)     export DEPLOY_TARGET=10.9 XCODE_VERSION=9.4.1 ;;
         esac
-
       - sudo xcode-select -s /Applications/Xcode-$XCODE_VERSION.app
 
       # https://letsencrypt.org/docs/dst-root-ca-x3-expiration-september-2021/
