@@ -2780,7 +2780,8 @@ static int SendMIDIMessage(
     if (msgInOptional) {
         res = (int)strlen(msgInOptional);
     }
-    if (res && msgInOptional_sz != NULL) {
+    // if (res && msgInOptional_sz != NULL) {
+    if (msgInOptional != NULL && strlen(msgInOptional) > 0) {
         SendMIDIMessageToHardware(output, msgInOptional, msgInOptional_sz);
     }
     else {
