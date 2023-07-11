@@ -42,3 +42,5 @@ MCULive_SetFaderValue
 MCULive_SetMeterValue    	
 MCULive_SetOption    	
 ```
+
+[More information](https://forum.cockos.com/showthread.php?t=277948)
