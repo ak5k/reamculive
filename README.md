@@ -1,5 +1,5 @@
 # ReaMCULive
-## REAPER ReaScript API control surface extension. 
+## REAPER Programmable ReaScript API control surface extension. 
 * Works with any MIDI and MCU compatible controller. REAPER 6.76 or later required.
 * Built-in extras for MCU usage (WIP).
 * ReaScript API to interact with device(s).
