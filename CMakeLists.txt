@@ -132,6 +132,7 @@ if(WIN32)
     /WX
     /wd4996
     /wd4244
+    /wd4018
     )
    target_compile_definitions(common INTERFACE NOMINMAX)
 else()
