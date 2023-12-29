@@ -34,7 +34,6 @@ endif()
 STRING(TOLOWER "${ARCH_NAME}" ARCH_NAME)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -155,6 +154,7 @@ if(HAS_STD_VARIANT)
 endif()
 
 add_library(${PROJECT_NAME} SHARED)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
   PREFIX "" # disable the "lib" prefix
@@ -174,6 +174,7 @@ endif()
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/reaper-plugins/reaper_csurf)
 target_link_libraries(reamculive common)
+set_target_properties(reamculive PROPERTIES CXX_STANDARD 17)
 target_link_libraries(${PROJECT_NAME} reamculive)
 
 find_package(WDL REQUIRED)
