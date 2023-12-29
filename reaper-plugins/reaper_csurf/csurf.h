@@ -10,20 +10,23 @@
 #include "resource.h"
 #include <stdio.h>
 
-namespace ReaMCULive {
+namespace ReaMCULive
+{
 
-enum {
-    HZOOM_EDITPLAYCUR = 0,
-    HZOOM_EDITCUR = 1,
-    HZOOM_VIEWCTR = 2,
-    HZOOM_MOUSECUR = 3
+enum
+{
+  HZOOM_EDITPLAYCUR = 0,
+  HZOOM_EDITCUR = 1,
+  HZOOM_VIEWCTR = 2,
+  HZOOM_MOUSECUR = 3
 };
 
-enum {
-    VZOOM_VIEWCTR = 0,
-    VZOOM_TOPVIS = 1,
-    VZOOM_LASTSEL = 2,
-    VZOOM_MOUSECUR = 3
+enum
+{
+  VZOOM_VIEWCTR = 0,
+  VZOOM_TOPVIS = 1,
+  VZOOM_LASTSEL = 2,
+  VZOOM_MOUSECUR = 3
 };
 
 extern REAPER_PLUGIN_HINSTANCE g_hInst; // used for dialogs
@@ -65,40 +68,43 @@ extern int __g_projectconfig_metronome_en;
 #define ID_SET_MARKER1 40657
 
 // Reaper track automation modes
-enum AutoMode {
-    AUTO_MODE_TRIM,
-    AUTO_MODE_READ,
-    AUTO_MODE_TOUCH,
-    AUTO_MODE_WRITE,
-    AUTO_MODE_LATCH,
+enum AutoMode
+{
+  AUTO_MODE_TRIM,
+  AUTO_MODE_READ,
+  AUTO_MODE_TOUCH,
+  AUTO_MODE_WRITE,
+  AUTO_MODE_LATCH,
 };
 
-#define DELETE_ASYNC(x)     \
-    do {                    \
-        if (x)              \
-            (x)->Destroy(); \
-    } while (0)
+#define DELETE_ASYNC(x)                                                        \
+  do                                                                           \
+  {                                                                            \
+    if (x)                                                                     \
+      (x)->Destroy();                                                          \
+  } while (0)
 
 midi_Output* CreateThreadedMIDIOutput(
-    midi_Output* output); // returns null on null
+  midi_Output* output); // returns null on null
 
 #define PREF_DIRCH WDL_DIRCHAR
 #define PREF_DIRSTR WDL_DIRCHAR_STR
 
-#define DEFAULT_DEVICE_REMAP()                       \
-    if (call == CSURF_EXT_MIDI_DEVICE_REMAP) {       \
-        if ((int)(INT_PTR)parm1 == 0 &&              \
-            m_midi_in_dev == (int)(INT_PTR)parm2) {  \
-            m_midi_in_dev = (int)(INT_PTR)parm3;     \
-            return 1;                                \
-        }                                            \
-        else if (                                    \
-            (int)(INT_PTR)parm1 == 1 &&              \
-            m_midi_out_dev == (int)(INT_PTR)parm2) { \
-            m_midi_out_dev = (int)(INT_PTR)parm3;    \
-            return 1;                                \
-        }                                            \
-    }
+#define DEFAULT_DEVICE_REMAP()                                                 \
+  if (call == CSURF_EXT_MIDI_DEVICE_REMAP)                                     \
+  {                                                                            \
+    if ((int)(INT_PTR)parm1 == 0 && m_midi_in_dev == (int)(INT_PTR)parm2)      \
+    {                                                                          \
+      m_midi_in_dev = (int)(INT_PTR)parm3;                                     \
+      return 1;                                                                \
+    }                                                                          \
+    else if ((int)(INT_PTR)parm1 == 1 &&                                       \
+             m_midi_out_dev == (int)(INT_PTR)parm2)                            \
+    {                                                                          \
+      m_midi_out_dev = (int)(INT_PTR)parm3;                                    \
+      return 1;                                                                \
+    }                                                                          \
+  }
 
 #endif
 }
