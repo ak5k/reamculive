@@ -432,10 +432,16 @@ public:
         return true;
       }
 
+      auto isMaster = false;
       if (tid == 8)
+      {
         tid = 0; // master offset, master=0
+        isMaster = true;
+      }
       else
+      {
         tid += GetBankOffset();
+      }
 
       MediaTrack* tr = CSurf_TrackFromID(tid, g_csurf_mcpmode);
 
@@ -447,8 +453,9 @@ public:
           return true;
         }
 
-        m_fader_pos[tid - GetBankOffset() ? tid - GetBankOffset() : 8] =
-          faderVal;
+        m_fader_pos[isMaster ? 8 : tid - GetBankOffset()] = faderVal;
+
+        // m_fader_pos[tid] = faderVal;
 
         double val{0};
         if (m_flipmode)
